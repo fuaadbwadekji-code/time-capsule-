@@ -1,0 +1,11 @@
+{
+  "name": "Time Capsule",
+  "short_name": "Time Capsule",
+  "description": "Send messages to the future... and let the memory come in its time",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#170f2b",
+  "theme_color": "#170f2b",
+  "orientation": "portrait",
+  "icons": []
+}
