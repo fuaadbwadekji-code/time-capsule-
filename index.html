@@ -10,26 +10,22 @@
 <meta name="theme-color" content="#170f2b">
 <link rel="manifest" href="manifest.json">
 <style>
-html { height: -webkit-fill-available; }
 html, body { margin:0; padding:0; background:#170f2b; overflow:hidden; position:fixed; left:0; right:0; top:0; bottom:0; width:100%; height:100%; }
-#root { position:fixed; left:0; right:0; top:0; bottom:0; overflow:hidden; background:#170f2b; height:100vh; height:-webkit-fill-available; height:100dvh; }
+#root { position:fixed; left:0; right:0; top:0; bottom:0; overflow:hidden; background:#170f2b; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script>
-// حل مؤكد لمشكلة iOS المعروفة: نتأكد إنه bottom:0 دايمًا صحيح بغض النظر عن حسابات dvh/vh المتذبذبة
-function pinRootToBottom() {
-  var root = document.getElementById("root");
-  if (!root) return;
-  root.style.bottom = "0px";
-  root.style.top = "0px";
-  root.style.height = "auto";
+// bug معروف بـ iOS: بوضعية standalone بس، الشاشة بتترك فراغ صغير بالأسفل حتى مع bottom:0.
+// منعوّض هالفراغ فقط بهالوضعية تحديدًا (أثبتنا بالمتصفح العادي إنه مافي مشكلة أصلاً).
+var isStandalone = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+if (isStandalone) {
+  document.documentElement.style.setProperty("--standalone-gap-fix", "34px");
+  var style = document.createElement("style");
+  style.textContent = "#root { bottom: -34px !important; height: calc(100% + 34px) !important; }";
+  document.head.appendChild(style);
 }
-pinRootToBottom();
-window.addEventListener("load", pinRootToBottom);
-window.addEventListener("resize", pinRootToBottom);
-window.addEventListener("orientationchange", function(){ setTimeout(pinRootToBottom, 100); });
 </script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -123,6 +119,9 @@ window.addEventListener("orientationchange", function(){ setTimeout(pinRootToBot
 .tc-cr-date { font-size:0.72em; color:#a78bd1; }
 .tc-cr-days { font-size:0.72em; color:#f2d9a0; white-space:nowrap; }
 .tc-bottom-nav { position:absolute; bottom:0; left:0; right:0; z-index:4; display:flex; justify-content:space-around; background:rgba(20,12,40,0.9); border-top:1px solid rgba(255,255,255,0.12); padding:8px 0 max(14px, env(safe-area-inset-bottom)); }
+@media (display-mode: standalone) {
+  .tc-root { height: -webkit-fill-available !important; }
+}
 .tc-nav-item { background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:2px; color:#a78bd1; font-size:0.56em; cursor:pointer; padding:0 2px; }
 .tc-nav-item.active { color:#fff; }
 .tc-nav-icon { font-size:1.15em; }
