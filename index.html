@@ -12,17 +12,26 @@
 <style>
 html, body { margin:0; padding:0; background:#170f2b; overflow:hidden; position:fixed; left:0; right:0; top:0; bottom:0; width:100%; }
 #root { position:fixed; left:0; right:0; top:0; overflow:hidden; background:#170f2b; height:100vh; height:100dvh; }
+#safe-area-probe { position:fixed; bottom:0; height:0; padding-bottom:env(safe-area-inset-bottom); pointer-events:none; visibility:hidden; }
 </style>
 </head>
 <body>
 <div id="root"></div>
+<div id="safe-area-probe"></div>
 <script>
+function getSafeBottom() {
+  var probe = document.getElementById("safe-area-probe");
+  if (!probe) return 0;
+  var v = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+  return v;
+}
 function setRealHeight() {
   var root = document.getElementById("root");
   if (!root) return;
   var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   var t = window.visualViewport ? window.visualViewport.offsetTop : 0;
-  root.style.height = h + "px";
+  var safeBottom = getSafeBottom();
+  root.style.height = (h + safeBottom) + "px";
   root.style.top = t + "px";
 }
 setRealHeight();
@@ -125,7 +134,7 @@ if (window.visualViewport) {
 .tc-cr-title { font-weight:600; font-size:0.9em; }
 .tc-cr-date { font-size:0.72em; color:#a78bd1; }
 .tc-cr-days { font-size:0.72em; color:#f2d9a0; white-space:nowrap; }
-.tc-bottom-nav { position:absolute; bottom:0; left:0; right:0; z-index:4; display:flex; justify-content:space-around; background:rgba(20,12,40,0.9); border-top:1px solid rgba(255,255,255,0.12); padding:8px 0 14px; }
+.tc-bottom-nav { position:absolute; bottom:0; left:0; right:0; z-index:4; display:flex; justify-content:space-around; background:rgba(20,12,40,0.9); border-top:1px solid rgba(255,255,255,0.12); padding:8px 0 max(14px, env(safe-area-inset-bottom)); }
 .tc-nav-item { background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:2px; color:#a78bd1; font-size:0.56em; cursor:pointer; padding:0 2px; }
 .tc-nav-item.active { color:#fff; }
 .tc-nav-icon { font-size:1.15em; }
