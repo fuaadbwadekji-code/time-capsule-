@@ -13,6 +13,20 @@
 html, body { margin:0; padding:0; background:#170f2b; overflow:hidden; position:fixed; inset:0; width:100%; height:100%; }
 #root { position:fixed; inset:0; height:100vh; height:100dvh; overflow:hidden; }
 </style>
+<script>
+// يثبت ارتفاع التطبيق الحقيقي المرئي (بدون الكيبورد) — يمنع القفز لما الكيبورد يفتح بالـ PWA
+function setRealHeight() {
+  var root = document.getElementById("root");
+  var h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+  root.style.height = h + "px";
+}
+window.addEventListener("load", setRealHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", setRealHeight);
+  window.visualViewport.addEventListener("scroll", setRealHeight);
+}
+window.addEventListener("orientationchange", () => setTimeout(setRealHeight, 100));
+</script>
 </head>
 <body>
 <div id="root"></div>
@@ -107,7 +121,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow:hidden; position:
 .tc-cr-title { font-weight:600; font-size:0.9em; }
 .tc-cr-date { font-size:0.72em; color:#a78bd1; }
 .tc-cr-days { font-size:0.72em; color:#f2d9a0; white-space:nowrap; }
-.tc-bottom-nav { position:absolute; bottom:0; left:0; right:0; z-index:4; display:flex; justify-content:space-around; background:rgba(20,12,40,0.9); border-top:1px solid rgba(255,255,255,0.12); padding:8px 0 14px; }
+.tc-bottom-nav { position:absolute; bottom:0; left:0; right:0; z-index:4; display:flex; justify-content:space-around; background:rgba(20,12,40,0.9); border-top:1px solid rgba(255,255,255,0.12); padding:8px 0 max(14px, env(safe-area-inset-bottom)); }
 .tc-nav-item { background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:2px; color:#a78bd1; font-size:0.56em; cursor:pointer; padding:0 2px; }
 .tc-nav-item.active { color:#fff; }
 .tc-nav-icon { font-size:1.15em; }
@@ -239,7 +253,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow:hidden; position:
 .tc-rec-preview-row audio { flex:1; height:34px; }
 
 /* Chat */
-.tc-chat-screen-wrap { position:relative; height:100%; overflow:hidden; display:flex; flex-direction:column; padding:calc(20px + env(safe-area-inset-top)) 18px 62px; background: radial-gradient(ellipse at 50% -10%, #2f1d52 0%, #1c1338 45%, #150e28 75%, #100b20 100%); }
+.tc-chat-screen-wrap { position:relative; height:100%; overflow:hidden; display:flex; flex-direction:column; padding:calc(20px + env(safe-area-inset-top)) 18px calc(48px + env(safe-area-inset-bottom)); background: radial-gradient(ellipse at 50% -10%, #2f1d52 0%, #1c1338 45%, #150e28 75%, #100b20 100%); }
 .tc-chat-header { position:relative; z-index:1; display:flex; align-items:center; gap:10px; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.08); flex-shrink:0; }
 .tc-chat-body-scroll { position:relative; z-index:1; flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-bottom:10px; }
 .tc-chat-inputbar { position:relative; z-index:6; flex-shrink:0; display:flex; align-items:center; gap:8px; background:rgba(23,14,43,0.92); backdrop-filter: blur(10px); border-top:1px solid rgba(255,255,255,0.1); border-radius:0 0 14px 14px; margin:8px -18px -0px; padding:10px 18px; }
