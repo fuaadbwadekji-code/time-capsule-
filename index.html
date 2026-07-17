@@ -10,38 +10,26 @@
 <meta name="theme-color" content="#170f2b">
 <link rel="manifest" href="manifest.json">
 <style>
-html, body { margin:0; padding:0; background:#170f2b; overflow:hidden; position:fixed; left:0; right:0; top:0; bottom:0; width:100%; }
-#root { position:fixed; left:0; right:0; top:0; overflow:hidden; background:#170f2b; height:100vh; height:100dvh; }
-#safe-area-probe { position:fixed; bottom:0; height:0; padding-bottom:env(safe-area-inset-bottom); pointer-events:none; visibility:hidden; }
+html { height: -webkit-fill-available; }
+html, body { margin:0; padding:0; background:#170f2b; overflow:hidden; position:fixed; left:0; right:0; top:0; bottom:0; width:100%; height:100%; }
+#root { position:fixed; left:0; right:0; top:0; bottom:0; overflow:hidden; background:#170f2b; height:100vh; height:-webkit-fill-available; height:100dvh; }
 </style>
 </head>
 <body>
 <div id="root"></div>
-<div id="safe-area-probe"></div>
 <script>
-function getSafeBottom() {
-  var probe = document.getElementById("safe-area-probe");
-  if (!probe) return 0;
-  var v = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
-  return v;
-}
-function setRealHeight() {
+// حل مؤكد لمشكلة iOS المعروفة: نتأكد إنه bottom:0 دايمًا صحيح بغض النظر عن حسابات dvh/vh المتذبذبة
+function pinRootToBottom() {
   var root = document.getElementById("root");
   if (!root) return;
-  var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  var t = window.visualViewport ? window.visualViewport.offsetTop : 0;
-  var safeBottom = getSafeBottom();
-  root.style.height = (h + safeBottom) + "px";
-  root.style.top = t + "px";
+  root.style.bottom = "0px";
+  root.style.top = "0px";
+  root.style.height = "auto";
 }
-setRealHeight();
-window.addEventListener("load", setRealHeight);
-window.addEventListener("resize", setRealHeight);
-window.addEventListener("orientationchange", function(){ setTimeout(setRealHeight, 100); });
-if (window.visualViewport) {
-  window.visualViewport.addEventListener("resize", setRealHeight);
-  window.visualViewport.addEventListener("scroll", setRealHeight);
-}
+pinRootToBottom();
+window.addEventListener("load", pinRootToBottom);
+window.addEventListener("resize", pinRootToBottom);
+window.addEventListener("orientationchange", function(){ setTimeout(pinRootToBottom, 100); });
 </script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
