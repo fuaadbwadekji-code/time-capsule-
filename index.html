@@ -24,6 +24,347 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   if(l){l.href=u;}else{l=document.createElement("link");l.rel="manifest";l.href=u;document.head.appendChild(l);}
 }catch(e){}})();
 </script>
+<style id="tc-redesign">
+/* ═══════════════════════════════════════════════════════════════
+   TIME CAPSULE — design layer
+   Loaded last so it wins. Visual only: no layout logic is changed.
+   Direction: quieter surfaces, one type scale, one control language,
+   motion that is felt rather than seen.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --ink:        #F4EEFF;
+  --ink-soft:   #B9A9D9;
+  --ink-faint:  #8B7BAD;
+  --violet:     #A97CEC;
+  --violet-dp:  #6A4BB0;
+  --surface:    rgba(255,255,255,0.05);
+  --surface-2:  rgba(255,255,255,0.075);
+  --line:       rgba(255,255,255,0.10);
+  --line-soft:  rgba(255,255,255,0.06);
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --ease: cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+
+/* ── Foundations ─────────────────────────────────────────────── */
+.tc-root, .tc-screen { color: var(--ink); }
+
+.tc-screen {
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+/* Headings: small, tracked, unobtrusive — the content should lead */
+.tc-list-header,
+.tc-section-header,
+.tc-set-section-title,
+.tc-field-label {
+  font-size: 0.68em !important;
+  letter-spacing: 2.4px !important;
+  text-transform: uppercase;
+  font-weight: 600 !important;
+  color: var(--ink-faint) !important;
+  margin: 26px 0 12px !important;
+}
+
+.tc-greeting { font-weight: 600; letter-spacing: -0.2px; }
+.tc-tagline-quote { color: var(--ink-soft); font-style: italic; opacity: 0.9; }
+
+/* ── Surfaces ────────────────────────────────────────────────── */
+.tc-card,
+.tc-settings-card,
+.tc-note-card,
+.tc-cr-body,
+.tc-notebook,
+.tc-recorder {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: none !important;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.tc-card { padding: 16px !important; margin-bottom: 12px !important; }
+.tc-settings-card { padding: 16px !important; margin-bottom: 12px !important; }
+
+.tc-empty {
+  color: var(--ink-faint) !important;
+  text-align: center;
+  padding: 22px 16px !important;
+  font-size: 0.88em;
+}
+
+/* ── Controls: one language everywhere ───────────────────────── */
+.tc-btn-primary,
+.tc-lock-btn {
+  background: linear-gradient(135deg, var(--violet), var(--violet-dp)) !important;
+  border: none !important;
+  border-radius: var(--r-md) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px;
+  padding: 13px 20px !important;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(106,75,176,0.34) !important;
+  transition: transform 130ms var(--ease), box-shadow 200ms var(--ease), opacity 200ms;
+}
+.tc-btn-primary:active,
+.tc-lock-btn:active { transform: scale(0.972); box-shadow: 0 2px 8px rgba(106,75,176,0.26) !important; }
+.tc-btn-primary:disabled { opacity: 0.42; box-shadow: none !important; }
+
+/* the small variant must stay small — it hugs its label */
+.tc-btn-small {
+  width: auto !important;
+  align-self: flex-start;
+  padding: 10px 18px !important;
+  font-size: 0.84em !important;
+  border-radius: var(--r-sm) !important;
+}
+/* …except inside the daily sheet, where a full-width action reads better */
+.tc-dailyq-sheet .tc-btn-small {
+  width: 100% !important;
+  align-self: stretch;
+  flex-shrink: 0;
+  padding: 13px 18px !important;
+  font-size: 0.9em !important;
+}
+
+.tc-btn-secondary,
+.tc-logout-btn {
+  background: var(--surface-2) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r-md) !important;
+  padding: 12px 18px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  transition: background 180ms var(--ease);
+}
+.tc-btn-secondary:active, .tc-logout-btn:active { background: rgba(255,255,255,0.13) !important; }
+
+.tc-btn-link { color: var(--violet) !important; font-weight: 500; }
+
+.tc-icon-btn,
+.tc-modal-close,
+.tc-chat-back {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 50% !important;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-soft) !important;
+  transition: background 160ms var(--ease), transform 130ms var(--ease);
+}
+.tc-icon-btn:active, .tc-modal-close:active, .tc-chat-back:active {
+  background: rgba(255,255,255,0.14) !important; transform: scale(0.94);
+}
+.tc-icon-btn:disabled { opacity: 0.35; }
+
+/* ── Inputs ──────────────────────────────────────────────────── */
+.tc-textarea,
+.tc-title-input,
+.tc-journal-textarea,
+.tc-dailyq-textarea,
+.tc-chat-text-input,
+.tc-pin-input,
+.tc-date-input {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r-md) !important;
+  color: var(--ink) !important;
+  box-sizing: border-box !important;
+  max-width: 100%;
+  transition: border-color 180ms var(--ease), background 180ms var(--ease);
+}
+.tc-textarea:focus,
+.tc-title-input:focus,
+.tc-journal-textarea:focus,
+.tc-dailyq-textarea:focus,
+.tc-chat-text-input:focus,
+.tc-pin-input:focus,
+.tc-date-input:focus {
+  outline: none !important;
+  border-color: rgba(169,124,236,0.6) !important;
+  background: var(--surface-2) !important;
+}
+::placeholder { color: var(--ink-faint) !important; opacity: 1; }
+
+/* the PIN field must never push its confirm button off-screen */
+.tc-pin-input {
+  width: 100% !important;
+  max-width: 200px !important;
+  padding: 14px 12px !important;
+  letter-spacing: 6px !important;
+  text-align: center;
+}
+.tc-pin-entry { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+/* a date control, not an empty slab */
+.tc-date-input {
+  width: auto !important;
+  min-width: 0;
+  height: 42px !important;
+  display: inline-flex; align-items: center;
+  padding: 0 14px !important;
+  font-size: 0.87em !important;
+  -webkit-appearance: none; appearance: none;
+}
+
+/* ── Chips, presets, tabs ────────────────────────────────────── */
+.tc-filter-chip,
+.tc-preset-btn,
+.tc-type-btn,
+.tc-tab-btn,
+.tc-picker-btn {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 999px !important;
+  color: var(--ink-soft) !important;
+  padding: 9px 15px !important;
+  font-size: 0.83em !important;
+  font-weight: 500;
+  transition: background 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.tc-filter-chip.selected, .tc-filter-chip.active,
+.tc-preset-btn.selected,
+.tc-type-btn.selected,
+.tc-tab-btn.active {
+  background: rgba(169,124,236,0.18) !important;
+  border-color: rgba(169,124,236,0.5) !important;
+  color: var(--ink) !important;
+}
+.tc-preset-btn, .tc-type-btn { border-radius: var(--r-md) !important; }
+
+/* ── Chat ────────────────────────────────────────────────────── */
+.tc-chat-header {
+  border-bottom: 1px solid var(--line-soft) !important;
+  z-index: 50 !important;
+}
+.tc-chat-title { font-weight: 650; letter-spacing: -0.2px; }
+.tc-chat-sub { color: var(--ink-faint) !important; font-size: 0.74em !important; }
+
+.tc-bubble {
+  border-radius: 20px !important;
+  padding: 10px 14px !important;
+  line-height: 1.45 !important;
+  font-size: 0.94em;
+}
+.tc-bubble-row.me .tc-bubble { border-bottom-right-radius: 7px !important; }
+.tc-bubble-row.them .tc-bubble { border-bottom-left-radius: 7px !important; }
+.tc-bubble-time { font-size: 0.62em !important; opacity: 0.5; }
+
+.tc-chat-inputbar {
+  background: rgba(20,12,40,0.94) !important;
+  border-top: 1px solid var(--line-soft) !important;
+  border-radius: 0 !important;
+  margin: 0 -20px !important;
+  padding: 8px 20px max(8px, env(safe-area-inset-bottom)) !important;
+}
+.tc-chat-text-input { border-radius: 999px !important; padding: 11px 16px !important; }
+.tc-chat-send, .tc-rec-btn {
+  background: linear-gradient(135deg, var(--violet), var(--violet-dp)) !important;
+  border: none !important;
+  box-shadow: 0 3px 12px rgba(106,75,176,0.36);
+}
+.tc-chat-body-scroll {
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Bottom navigation ───────────────────────────────────────── */
+.tc-bottom-nav {
+  background: rgba(18,11,36,0.97) !important;
+  border-top: 1px solid var(--line-soft) !important;
+}
+.tc-nav-btn, .tc-nav-item {
+  color: var(--ink-faint) !important;
+  transition: color 180ms var(--ease), transform 180ms var(--ease);
+}
+.tc-nav-btn.active, .tc-nav-item.active {
+  color: var(--violet) !important;
+  transform: translateY(-1px);
+}
+
+/* ── Avatars ─────────────────────────────────────────────────── */
+.tc-avatar { box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+.tc-avatar-edit-badge {
+  width: 34px !important; height: 34px !important;
+  bottom: 0 !important; left: 0 !important;
+  border: 3px solid #170f2b !important;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.45);
+}
+.tc-avatar-edit-badge svg { width: 17px; height: 17px; }
+
+/* ── Sheets & modals ─────────────────────────────────────────── */
+.tc-dailyq-overlay, .tc-modal-overlay, .tc-crop-backdrop {
+  background: rgba(10,5,20,0.78) !important;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.tc-dailyq-sheet, .tc-modal-content {
+  background: linear-gradient(180deg, #2b1c4c, #1a1132) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r-lg) var(--r-lg) 0 0 !important;
+  max-height: 82dvh !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 20px 20px calc(24px + env(safe-area-inset-bottom)) !important;
+}
+.tc-modal-content { border-radius: var(--r-lg) !important; }
+.tc-modal-title { font-weight: 650; letter-spacing: -0.2px; }
+.tc-modal-sub, .tc-crop-hint { color: var(--ink-faint) !important; font-size: 0.8em !important; }
+.tc-dailyq-label { color: var(--ink-faint) !important; font-size: 0.72em !important; letter-spacing: 1.6px; text-transform: uppercase; }
+.tc-dailyq-question { font-weight: 650 !important; line-height: 1.4; letter-spacing: -0.2px; }
+.tc-dailyq-textarea { min-height: 96px; max-height: 34dvh; }
+
+/* ── Journal ─────────────────────────────────────────────────── */
+.tc-notebook { padding: 16px !important; }
+.tc-notebook-tab { color: var(--ink-faint) !important; font-size: 0.72em !important; letter-spacing: 1.6px; text-transform: uppercase; }
+.tc-journal-textarea { line-height: 1.65 !important; }
+.tc-journal-reflection {
+  background: rgba(169,124,236,0.1) !important;
+  border: 1px solid rgba(169,124,236,0.22) !important;
+  border-radius: var(--r-md) !important;
+  line-height: 1.65 !important;
+}
+.tc-journal-today-badge {
+  background: rgba(169,124,236,0.2) !important;
+  color: var(--violet) !important;
+  border-radius: 999px; padding: 2px 9px; font-size: 0.66em; letter-spacing: 1px;
+}
+
+/* ── Floating action ─────────────────────────────────────────── */
+.tc-fab {
+  background: linear-gradient(135deg, var(--violet), var(--violet-dp)) !important;
+  box-shadow: 0 8px 24px rgba(106,75,176,0.5) !important;
+  transition: transform 150ms var(--ease);
+}
+.tc-fab:active { transform: scale(0.93); }
+
+/* ── Motion: cheap, GPU-friendly, never on long lists ────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .tc-dailyq-sheet, .tc-modal-content {
+    animation: tcSheetUp 260ms var(--ease) both;
+  }
+  @keyframes tcSheetUp {
+    from { opacity: 0; transform: translate3d(0, 22px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+}
+
+/* ── Containment: nothing may drift sideways ─────────────────── */
+.tc-screen, .tc-card, .tc-settings-card, .tc-settings-row {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.tc-settings-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+</style>
 </head>
 <body>
 <div id="root"></div>
@@ -177,17 +518,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 .tc-memory-placeholder { font-size:1.7em; }
 .tc-memory-date { position:absolute; bottom:2px; right:4px; font-size:0.58em; background:rgba(0,0,0,0.5); padding:1px 5px; border-radius:6px; }
 
-/* ───────── refinement pass: calmer rhythm, clearer hierarchy ───────── */
-.tc-screen { padding-left:20px; padding-right:20px; }
-
-/* section headings: quiet, tracked, editorial — like DAY//2004 */
-.tc-list-header, .tc-set-section-title {
-  font-size:0.68em; letter-spacing:2.2px; text-transform:uppercase;
-  color:#9e8cc4; font-weight:600; margin:26px 0 12px;
-}
-
-/* cards: softer surface, gentler border, more breathing room */
-.tc-card, .tc-settings-card {
+.tc-settings-card {
   background:rgba(255,255,255,0.045);
   border:1px solid rgba(255,255,255,0.09);
   border-radius:18px;
