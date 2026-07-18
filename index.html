@@ -35,8 +35,8 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 
 :root {
   --ink:        #F4EEFF;
-  --ink-soft:   #B9A9D9;
-  --ink-faint:  #8B7BAD;
+  --ink-soft:   #CFC2E8;
+  --ink-faint:  #A99BC8;
   --violet:     #A97CEC;
   --violet-dp:  #6A4BB0;
   --surface:    rgba(255,255,255,0.05);
@@ -334,7 +334,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 .tc-dailyq-textarea { min-height: 96px; max-height: 34dvh; }
 
 /* ── Journal ─────────────────────────────────────────────────── */
-.tc-notebook { padding: 16px !important; }
+.tc-notebook { padding: 34px 16px 16px !important; }
 .tc-notebook-tab { color: var(--ink-faint) !important; font-size: 0.72em !important; letter-spacing: 1.6px; text-transform: uppercase; }
 .tc-journal-textarea { line-height: 1.65 !important; }
 .tc-journal-reflection {
@@ -502,7 +502,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 }
 
 /* ink on lavender paper */
-.tc-modal-title {
+.tc-modal-content .tc-modal-title {
   font-family: "Cormorant Garamond", "Iowan Old Style", Georgia, serif !important;
   font-size: 1.62em !important;
   font-weight: 600 !important;
@@ -511,7 +511,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   line-height: 1.22 !important;
   margin-bottom: 2px;
 }
-.tc-modal-sub {
+.tc-modal-content .tc-modal-sub {
   color: #8A6DB4 !important;
   font-size: 0.7em !important;
   letter-spacing: 2.6px !important;
@@ -519,7 +519,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   text-align: center;
   margin-bottom: 4px;
 }
-.tc-reveal-text {
+.tc-modal-content .tc-reveal-text {
   font-family: "Cormorant Garamond", "Iowan Old Style", Georgia, serif !important;
   font-size: 1.22em !important;
   line-height: 1.88 !important;
@@ -528,7 +528,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   padding: 18px 4px 6px !important;
   white-space: pre-wrap;
 }
-.tc-reveal-text::before {
+.tc-modal-content .tc-reveal-text::before {
   content: "";
   display: block;
   width: 38px; height: 1px;
@@ -541,8 +541,8 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   box-shadow: 0 8px 20px rgba(46,33,69,0.35);
   margin: 8px 0 4px;
 }
-.tc-lm-label { color: #8A6DB4 !important; letter-spacing: 2px; text-transform: uppercase; font-size: 0.66em !important; }
-.tc-lm-title {
+.tc-modal-content .tc-lm-label { color: #8A6DB4 !important; letter-spacing: 2px; text-transform: uppercase; font-size: 0.66em !important; }
+.tc-modal-content .tc-lm-title {
   font-family: "Cormorant Garamond", Georgia, serif !important;
   font-size: 1.1em !important;
   line-height: 1.7;
