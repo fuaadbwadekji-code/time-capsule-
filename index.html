@@ -69,14 +69,16 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 .tc-avatar.chat-header { width:46px; height:46px; font-size:1.15em; border-radius:14px; }
 .tc-avatar.settings-photo { width:88px; height:88px; font-size:2em; }
 .tc-avatar-wrap { position:relative; display:inline-block; }
-.tc-avatar-edit-badge { position:absolute; bottom:-2px; left:-2px; width:28px; height:28px; border-radius:50%; background:linear-gradient(145deg,#a97cec,#6a4bb0); display:flex; align-items:center; justify-content:center; color:#fff; border:2px solid #170f2b; }
-.tc-pin-entry { display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:14px; width:100%; }
-.tc-pin-input { width:200px; text-align:center; font-size:1.15em; letter-spacing:5px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:14px 16px; color:#fff; font-weight:500; }
+.tc-avatar-edit-badge { position:absolute; bottom:0; left:0; width:34px; height:34px; border-radius:50%; background:linear-gradient(145deg,#a97cec,#6a4bb0); display:flex; align-items:center; justify-content:center; color:#fff; border:3px solid #170f2b; box-shadow:0 3px 10px rgba(0,0,0,0.45); }
+.tc-avatar-edit-badge svg { width:17px; height:17px; }
+.tc-pin-entry { display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:14px; width:100%; max-width:100%; box-sizing:border-box; }
+.tc-pin-input { width:100%; max-width:200px; box-sizing:border-box; text-align:center; font-size:1.15em; letter-spacing:5px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:14px 12px; color:#fff; font-weight:500; }
 .tc-pin-input::placeholder { color:#8a76b8; font-size:0.82em; letter-spacing:0.5px; font-weight:400; }
 .tc-error { color:#ff9d9d; font-size:0.85em; }
 .tc-btn-primary { background:linear-gradient(135deg,#9a6fdb,#6a4bb0); color:#fff; border:none; border-radius:14px; padding:13px 22px; font-size:0.95em; font-weight:600; cursor:pointer; }
 .tc-btn-primary:disabled { opacity:0.5; cursor:default; }
-.tc-btn-small { padding:8px 16px; font-size:0.85em; margin-top:8px;  width:100%; flex-shrink:0; margin-top:4px; }
+.tc-btn-small { padding:9px 18px; font-size:0.85em; margin-top:8px; align-self:flex-start; }
+.tc-dailyq-sheet .tc-btn-small { width:100%; align-self:stretch; flex-shrink:0; margin-top:6px; }
 .tc-btn-link { background:none; border:none; color:#a78bd1; font-size:0.85em; cursor:pointer; }
 .tc-btn-back { background:none; border:none; color:#fff; font-size:1.3em; cursor:pointer; }
 .tc-fab { position:fixed; bottom:calc(88px + env(safe-area-inset-bottom)); left:20px; z-index:15; width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,#9a6fdb,#6a4bb0); color:#fff; font-size:1.7em; border:none; box-shadow:0 6px 20px rgba(106,75,176,0.5); cursor:pointer; }
@@ -174,8 +176,77 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 .tc-memory-tile img { width:100%; height:100%; object-fit:cover; }
 .tc-memory-placeholder { font-size:1.7em; }
 .tc-memory-date { position:absolute; bottom:2px; right:4px; font-size:0.58em; background:rgba(0,0,0,0.5); padding:1px 5px; border-radius:6px; }
-.tc-settings-card { position:relative; z-index:1; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:13px; margin-bottom:14px; }
-.tc-settings-row { display:flex; justify-content:space-between; }
+
+/* ───────── refinement pass: calmer rhythm, clearer hierarchy ───────── */
+.tc-screen { padding-left:20px; padding-right:20px; }
+
+/* section headings: quiet, tracked, editorial — like DAY//2004 */
+.tc-list-header, .tc-set-section-title {
+  font-size:0.68em; letter-spacing:2.2px; text-transform:uppercase;
+  color:#9e8cc4; font-weight:600; margin:26px 0 12px;
+}
+
+/* cards: softer surface, gentler border, more breathing room */
+.tc-card, .tc-settings-card {
+  background:rgba(255,255,255,0.045);
+  border:1px solid rgba(255,255,255,0.09);
+  border-radius:18px;
+  padding:16px;
+  margin-bottom:12px;
+}
+
+/* inputs: consistent height and focus state everywhere */
+.tc-date-input, .tc-pin-input, .tc-journal-textarea,
+.tc-dailyq-textarea, .tc-settings-card input[type=text], .tc-chat-input {
+  background:rgba(255,255,255,0.055);
+  border:1px solid rgba(255,255,255,0.11);
+  border-radius:14px;
+  color:#f2eaff;
+  box-sizing:border-box;
+  transition:border-color 160ms ease, background 160ms ease;
+}
+.tc-date-input:focus, .tc-pin-input:focus, .tc-journal-textarea:focus,
+.tc-dailyq-textarea:focus, .tc-settings-card input[type=text]:focus, .tc-chat-input:focus {
+  outline:none; border-color:rgba(169,124,236,0.65); background:rgba(255,255,255,0.08);
+}
+
+/* buttons: one consistent language */
+.tc-btn-primary {
+  background:linear-gradient(135deg,#a97cec,#6a4bb0);
+  border:none; border-radius:14px; color:#fff;
+  font-weight:600; letter-spacing:0.2px;
+  padding:13px 18px; cursor:pointer;
+  box-shadow:0 4px 14px rgba(106,75,176,0.38);
+  transition:transform 120ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+.tc-btn-primary:active { transform:scale(0.975); box-shadow:0 2px 8px rgba(106,75,176,0.3); }
+.tc-btn-primary:disabled { opacity:0.45; box-shadow:none; }
+.tc-btn-secondary {
+  background:rgba(255,255,255,0.07); color:#e8dcff;
+  border:1px solid rgba(255,255,255,0.14); border-radius:14px;
+  padding:12px 18px; font-weight:500; cursor:pointer;
+  transition:background 160ms ease;
+}
+.tc-btn-secondary:active { background:rgba(255,255,255,0.13); }
+
+/* the date field reads as a control, not an empty slab */
+.tc-date-input { width:auto; min-width:0; max-width:100%; height:42px;
+  display:inline-flex; align-items:center; padding:0 14px;
+  font-size:0.88em; -webkit-appearance:none; appearance:none; }
+
+/* bottom nav: quieter, with a clearer active state */
+.tc-bottom-nav { background:rgba(18,11,36,0.96); border-top:1px solid rgba(255,255,255,0.08); }
+.tc-nav-btn { transition:color 160ms ease, transform 160ms ease; }
+.tc-nav-btn.active { transform:translateY(-1px); }
+
+/* chat bubbles: a touch more air and softer corners */
+.tc-bubble { border-radius:18px; padding:10px 14px; line-height:1.45; }
+.tc-bubble-row.me .tc-bubble { border-bottom-right-radius:6px; }
+.tc-bubble-row.them .tc-bubble { border-bottom-left-radius:6px; }
+
+
+.tc-settings-card { position:relative; z-index:1; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:13px; margin-bottom:14px;  box-sizing:border-box; max-width:100%; }
+.tc-settings-row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; max-width:100%; }
 .tc-logout-btn { position:relative; z-index:1; width:100%; background:rgba(255,80,80,0.2); }
 .tc-modal-overlay { position:absolute; inset:0; z-index:20; background:rgba(10,5,20,0.75); display:flex; align-items:center; justify-content:center; padding:20px; }
 .tc-dailyq-overlay { z-index:300; background:rgba(10,5,20,0.78); backdrop-filter:blur(4px); display:flex; align-items:flex-end; overflow:hidden; overscroll-behavior:contain; touch-action:none; }
