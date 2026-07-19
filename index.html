@@ -1800,5 +1800,154 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   document.addEventListener("click", function(){ setTimeout(markRead, 400); }, true);
 })();
 </script>
+<script>
+/* ── Typing bubble in the thread + faster read receipts ──────────────── */
+(function(){
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+  var H = { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY };
+
+  function me(){ try { return localStorage.getItem("tc_account_id"); } catch(e){ return null; } }
+  function chatOpen(){ return !!document.querySelector(".tc-chat-screen-wrap"); }
+
+  var partnerId = null;
+  async function findPartner(){
+    var id = me();
+    if (!id || partnerId) return partnerId;
+    try {
+      var r = await fetch(SB_URL + "/rest/v1/accounts?id=neq." + id + "&select=id&limit=1", { headers: H });
+      var rows = await r.json();
+      if (Array.isArray(rows) && rows[0]) partnerId = rows[0].id;
+    } catch(e){}
+    return partnerId;
+  }
+
+  /* ---- the WhatsApp-style bubble with three breathing dots ---- */
+  function showBubble(on){
+    var list = document.querySelector(".tc-chat-body-scroll");
+    if (!list) return;
+    var el = document.getElementById("tc-typing-bubble");
+
+    if (!on) { if (el) el.remove(); return; }
+    if (el) return;                                  // already showing
+
+    var row = document.createElement("div");
+    row.id = "tc-typing-bubble";
+    row.className = "tc-bubble-row them";
+
+    var bubble = document.createElement("div");
+    bubble.className = "tc-bubble them";
+    bubble.style.cssText = "display:inline-flex;align-items:center;gap:5px;padding:13px 16px";
+
+    for (var i = 0; i < 3; i++) {
+      var d = document.createElement("span");
+      d.style.cssText =
+        "width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.45;" +
+        "animation:tcDot 1.25s " + (i * 0.16) + "s infinite ease-in-out";
+      bubble.appendChild(d);
+    }
+    row.appendChild(bubble);
+    list.appendChild(row);
+
+    // keep it in view, like a real incoming message
+    var nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 160;
+    if (nearBottom) list.scrollTop = list.scrollHeight;
+  }
+
+  /* ---- polling: typing state + marking their messages read ---- */
+  var lastMark = 0;
+  async function markRead(){
+    var id = me();
+    if (!id || !chatOpen() || document.hidden) return;
+    if (Date.now() - lastMark < 1200) return;
+    lastMark = Date.now();
+    try {
+      await fetch(SB_URL + "/rest/v1/messages?recipient_id=eq." + id + "&read_at=is.null", {
+        method: "PATCH",
+        headers: Object.assign({}, H, { "Content-Type":"application/json", Prefer: "return=minimal" }),
+        body: JSON.stringify({ read_at: new Date().toISOString() })
+      });
+    } catch(e){}
+  }
+
+  async function pollTyping(){
+    if (!chatOpen() || document.hidden) { showBubble(false); return; }
+    var pid = await findPartner();
+    if (!pid) return;
+    try {
+      var r = await fetch(
+        SB_URL + "/rest/v1/presence?account_id=eq." + pid + "&select=is_typing,typing_updated_at",
+        { headers: H });
+      var rows = await r.json();
+      var row = Array.isArray(rows) ? rows[0] : null;
+      var fresh = false;
+      if (row && row.is_typing && row.typing_updated_at) {
+        fresh = (Date.now() - new Date(row.typing_updated_at).getTime()) < 6000;
+      }
+      showBubble(fresh);
+    } catch(e){}
+  }
+
+  var style = document.createElement("style");
+  style.textContent =
+    "@keyframes tcDot{0%,60%,100%{transform:translateY(0);opacity:.4}" +
+    "30%{transform:translateY(-4px);opacity:.95}}";
+  document.head.appendChild(style);
+
+  function loop(){
+    pollTyping();
+    markRead();
+  }
+  window.addEventListener("load", function(){
+    setTimeout(loop, 1200);
+    setInterval(loop, 1800);          // brisk enough to feel live
+  });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) loop(); });
+})();
+</script>
+<script>
+/* ── Keep my own ticks current without waiting for a refresh ─────────── */
+(function(){
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+  var H = { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY };
+
+  function me(){ try { return localStorage.getItem("tc_account_id"); } catch(e){ return null; } }
+  function chatOpen(){ return !!document.querySelector(".tc-chat-screen-wrap"); }
+
+  var lastCount = -1;
+
+  async function refreshTicks(){
+    if (!chatOpen() || document.hidden) return;
+    var id = me();
+    if (!id) return;
+    try {
+      // how many of my messages have been read?
+      var r = await fetch(
+        SB_URL + "/rest/v1/messages?sender_id=eq." + id + "&read_at=not.is.null&select=id",
+        { headers: Object.assign({}, H, { Prefer: "count=exact" }) });
+      var rows = await r.json();
+      var n = Array.isArray(rows) ? rows.length : 0;
+      if (n === lastCount) return;
+      lastCount = n;
+
+      // paint the ticks that are already on screen, newest first
+      var mine = document.querySelectorAll(".tc-bubble-row.me .tc-seen");
+      for (var i = 0; i < mine.length; i++) {
+        var fromEnd = mine.length - i;          // 1 = newest
+        var read = fromEnd <= n;
+        mine[i].textContent = read ? "\u2713\u2713" : "\u2713";
+        mine[i].classList.toggle("read", read);
+      }
+    } catch(e){}
+  }
+
+  window.addEventListener("load", function(){
+    setTimeout(refreshTicks, 1500);
+    setInterval(refreshTicks, 2000);
+  });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshTicks(); });
+})();
+</script>
 </body>
 </html>
