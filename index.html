@@ -1051,13 +1051,22 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   function place(){
     if (document.getElementById('tc-push-card')) return;
-    // the settings screen is the one containing the logout button
-    var logout = document.querySelector('.tc-logout-btn');
-    if (!logout) return;
-    var screen = logout.closest('.tc-screen');
+    // The settings screen is the only one that renders a font picker, so use that as the
+    // anchor; fall back to any screen that has settings cards.
+    var screen = null;
+    var fontList = document.querySelector('.tc-font-list');
+    if (fontList) screen = fontList.closest('.tc-screen');
+    if (!screen) {
+      var cards = document.querySelectorAll('.tc-screen .tc-settings-card');
+      if (cards.length) screen = cards[0].closest('.tc-screen');
+    }
     if (!screen) return;
     var first = screen.querySelector('.tc-settings-card');
-    if (first && first.parentNode) first.parentNode.insertBefore(build(), first);
+    if (first && first.parentNode) {
+      first.parentNode.insertBefore(build(), first);
+    } else {
+      screen.appendChild(build());
+    }
   }
 
   var mo = new MutationObserver(function(){
@@ -1070,6 +1079,51 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     place();
   }
   start();
+})();
+</script>
+<script>
+/* Safety net: if the settings card can't attach for any reason, surface a one-time
+   floating prompt so notifications can still be switched on. */
+(function(){
+  function shouldOffer(){
+    try {
+      if (!("Notification" in window)) return false;
+      if (Notification.permission !== "default") return false;
+      if (localStorage.getItem("tc_push_dismissed") === "1") return false;
+      return true;
+    } catch(e){ return false; }
+  }
+  function show(){
+    if (!shouldOffer() || document.getElementById("tc-push-fab")) return;
+    var bar = document.createElement("div");
+    bar.id = "tc-push-fab";
+    bar.style.cssText =
+      "position:fixed;left:14px;right:14px;bottom:calc(84px + env(safe-area-inset-bottom));" +
+      "z-index:400;background:linear-gradient(135deg,#A97CEC,#6A4BB0);color:#fff;" +
+      "border-radius:16px;padding:13px 14px;display:flex;align-items:center;gap:10px;" +
+      "box-shadow:0 10px 26px rgba(0,0,0,.5);font-size:13.5px;font-weight:600;" +
+      "font-family:-apple-system,sans-serif";
+    var txt = document.createElement("div");
+    txt.style.cssText = "flex:1;line-height:1.35;font-weight:600";
+    txt.textContent = "Activer les notifications";
+    var no = document.createElement("button");
+    no.textContent = "\u2715";
+    no.style.cssText = "background:rgba(255,255,255,.18);border:none;color:#fff;width:30px;height:30px;border-radius:50%;flex:none";
+    no.onclick = function(e){
+      e.stopPropagation();
+      try { localStorage.setItem("tc_push_dismissed","1"); } catch(_){}
+      bar.remove();
+    };
+    bar.onclick = async function(){
+      try {
+        var ok = await window.tcEnablePush();
+        if (ok) bar.remove();
+      } catch(_){}
+    };
+    bar.appendChild(txt); bar.appendChild(no);
+    document.body.appendChild(bar);
+  }
+  window.addEventListener("load", function(){ setTimeout(show, 2500); });
 })();
 </script>
 </body>
