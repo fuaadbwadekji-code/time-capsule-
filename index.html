@@ -2381,18 +2381,24 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         e.preventDefault();
         var evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
         input.dispatchEvent(evt);
-        setTimeout(function(){ ta.value = ""; grow(); ta.focus(); }, 30);
+        ta.value = "";
+        grow();
+        ta.focus();
       }
     });
 
     // when the app clears the field after sending, clear ours too
-    var obs = new MutationObserver(function(){});
+    // Mirror the app's own field, focused or not. When it empties after a send,
+    // ours empties with it.
+    var lastSeen = input.value;
     setInterval(function(){
-      if (document.activeElement !== ta && input.value !== ta.value) {
+      if (input.value === lastSeen) return;   // nothing changed on the app's side
+      lastSeen = input.value;
+      if (input.value !== ta.value) {
         ta.value = input.value;
         grow();
       }
-    }, 400);
+    }, 120);
 
     // hide the original but keep it in the tree so the app keeps working
     input.style.position = "absolute";
@@ -2405,6 +2411,18 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
     input.parentNode.insertBefore(ta, input);
     grow();
+
+    // The send button doesn't go through the Enter handler — clear on tap as well.
+    var bar = ta.closest(".tc-chat-inputbar");
+    if (bar) {
+      var send = bar.querySelector(".tc-chat-send");
+      if (send && !send.__tcHooked) {
+        send.__tcHooked = true;
+        send.addEventListener("click", function(){
+          setTimeout(function(){ ta.value = ""; grow(); ta.focus(); }, 20);
+        });
+      }
+    }
   }
 
   var mo = new MutationObserver(function(){
