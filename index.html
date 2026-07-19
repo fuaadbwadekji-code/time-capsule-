@@ -1126,5 +1126,274 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   window.addEventListener("load", function(){ setTimeout(show, 2500); });
 })();
 </script>
+<script>
+/* ── Chat: ⋯ menu with "delete conversation" ─────────────────────── */
+(function(){
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+  var L = {
+    fr: { del:"Supprimer la conversation",
+          ask:"Supprimer cette conversation pour vous deux ? Action irréversible." },
+    tr: { del:"Sohbeti sil",
+          ask:"Bu sohbet ikiniz için de silinsin mi? Geri alınamaz." }
+  };
+  function lang(){ return document.documentElement.lang === 'tr' ? 'tr' : 'fr'; }
+
+  async function wipe(){
+    var t = L[lang()];
+    if (!window.confirm(t.ask)) return;
+    try {
+      var res = await fetch(SB_URL + "/rest/v1/messages?id=neq.00000000-0000-0000-0000-000000000000", {
+        method: "DELETE",
+        headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Prefer": "return=minimal" }
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      location.reload();
+    } catch (e) {
+      alert("Erreur: " + (e && e.message || e));
+    }
+  }
+
+  function menuFor(header){
+    if (header.querySelector('.tc-x-menu-wrap')) return;
+    var t = L[lang()];
+
+    var wrap = document.createElement('div');
+    wrap.className = 'tc-x-menu-wrap';
+    wrap.style.cssText = 'margin-left:auto;position:relative;flex:none';
+
+    var btn = document.createElement('button');
+    btn.textContent = '\u22EF';
+    btn.setAttribute('aria-label','menu');
+    btn.style.cssText =
+      'background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);' +
+      'color:#CFC2E8;font-size:19px;line-height:1;width:36px;height:36px;border-radius:50%;' +
+      'display:flex;align-items:center;justify-content:center;cursor:pointer';
+
+    var menu = null;
+    function close(){ if (menu){ menu.remove(); menu = null; } var b=document.getElementById('tc-x-backdrop'); if(b) b.remove(); }
+
+    btn.onclick = function(e){
+      e.stopPropagation();
+      if (menu) { close(); return; }
+
+      var backdrop = document.createElement('div');
+      backdrop.id = 'tc-x-backdrop';
+      backdrop.style.cssText = 'position:fixed;inset:0;z-index:150';
+      backdrop.onclick = close;
+      document.body.appendChild(backdrop);
+
+      menu = document.createElement('div');
+      menu.style.cssText =
+        'position:absolute;top:42px;right:0;min-width:210px;z-index:200;' +
+        'background:#2a1b4d;border:1px solid rgba(255,255,255,.2);border-radius:14px;' +
+        'overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.6);' +
+        'transform-origin:top right;animation:tcXMenu 150ms cubic-bezier(.2,.9,.3,1.2)';
+
+      var item = document.createElement('button');
+      item.textContent = '\uD83D\uDDD1  ' + t.del;
+      item.style.cssText =
+        'display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;' +
+        'border:none;padding:14px 16px;font-size:14px;font-weight:500;color:#ff6b6b;cursor:pointer';
+      item.onclick = function(ev){ ev.stopPropagation(); close(); wipe(); };
+
+      menu.appendChild(item);
+      wrap.appendChild(menu);
+    };
+
+    wrap.appendChild(btn);
+    header.appendChild(wrap);
+  }
+
+  var style = document.createElement('style');
+  style.textContent = '@keyframes tcXMenu{from{opacity:0;transform:scale(.86) translateY(-6px)}to{opacity:1;transform:scale(1) translateY(0)}}';
+  document.head.appendChild(style);
+
+  function scan(){
+    var h = document.querySelector('.tc-chat-header');
+    if (h) menuFor(h);
+  }
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(scan, 40);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 40);
+    mo.observe(document.body, {childList:true, subtree:true});
+    scan();
+  }
+  start();
+})();
+</script>
+<script>
+/* ── First-run tour: shown once per account, remembered on the server ── */
+(function(){
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+
+  var STEPS = {
+    fr: [
+      { icon:"\uD83E\uDED9", title:"Bienvenue",
+        text:"Un espace rien qu'à vous deux : des lettres qui s'ouvrent plus tard, vos souvenirs, et vos pensées." },
+      { icon:"\uD83D\uDCAC", target:"chat", title:"Messages",
+        text:"Votre conversation privée. Écrivez, envoyez des photos ou des vocaux — chacun dans sa langue, la traduction se fait toute seule." },
+      { icon:"\uD83D\uDCE6", target:"capsules", title:"Capsules",
+        text:"Écrivez une lettre et choisissez quand elle s'ouvrira : dans une semaine, un an… Elle reste scellée jusque-là." },
+      { icon:"\u2764\uFE0F", target:"memories", title:"Souvenirs",
+        text:"Toutes les capsules déjà ouvertes se rangent ici, comme un album à relire." },
+      { icon:"\uD83D\uDCD6", target:"journal", title:"Journal",
+        text:"Votre journal privé — l'autre ne le voit pas. Après chaque note, un compagnon bienveillant vous répond." },
+      { icon:"\uD83D\uDD14", title:"Notifications",
+        text:"Activez-les dans Paramètres pour être prévenu à chaque message et à chaque capsule qui s'ouvre." }
+    ],
+    tr: [
+      { icon:"\uD83E\uDED9", title:"Hoş geldin",
+        text:"Sadece ikinize ait bir alan: sonra açılacak mektuplar, anılarınız ve düşünceleriniz." },
+      { icon:"\uD83D\uDCAC", target:"chat", title:"Mesajlar",
+        text:"Özel sohbetiniz. Yazın, fotoğraf veya sesli mesaj gönderin — herkes kendi dilinde, çeviri kendiliğinden." },
+      { icon:"\uD83D\uDCE6", target:"capsules", title:"Kapsüller",
+        text:"Bir mektup yazın ve ne zaman açılacağını seçin: bir hafta, bir yıl… O ana kadar mühürlü kalır." },
+      { icon:"\u2764\uFE0F", target:"memories", title:"Anılar",
+        text:"Açılmış tüm kapsüller burada birikir — tekrar okunacak bir albüm gibi." },
+      { icon:"\uD83D\uDCD6", target:"journal", title:"Günlük",
+        text:"Kişisel günlüğünüz — diğeri göremez. Her nottan sonra sıcak bir yoldaş size cevap verir." },
+      { icon:"\uD83D\uDD14", title:"Bildirimler",
+        text:"Her mesajda ve açılan her kapsülde haberdar olmak için Ayarlar'dan açın." }
+    ]
+  };
+  var UI = { fr:{next:"Suivant", done:"C'est parti", skip:"Passer"},
+             tr:{next:"İleri",   done:"Başlayalım", skip:"Atla"} };
+
+  function lang(){ return document.documentElement.lang === 'tr' ? 'tr' : 'fr'; }
+  function accountId(){ try { return localStorage.getItem("tc_account_id"); } catch(e){ return null; } }
+
+  async function alreadySeen(id){
+    try {
+      var r = await fetch(SB_URL + "/rest/v1/accounts?id=eq." + id + "&select=tour_done", {
+        headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY }
+      });
+      var rows = await r.json();
+      // if the column doesn't exist yet, treat as "not seen" but don't loop forever
+      if (!Array.isArray(rows)) return true;
+      return !!(rows[0] && rows[0].tour_done);
+    } catch (e) { return true; }
+  }
+
+  async function markSeen(id){
+    try {
+      await fetch(SB_URL + "/rest/v1/accounts?id=eq." + id, {
+        method: "PATCH",
+        headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY,
+                   "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ tour_done: true })
+      });
+    } catch (e) {}
+    try { localStorage.setItem("tc_tour_done","1"); } catch(e){}
+  }
+
+  function highlight(target){
+    document.querySelectorAll('.tc-tour-glow').forEach(function(el){ el.classList.remove('tc-tour-glow'); });
+    if (!target) return;
+    var labels = document.querySelectorAll('.tc-bottom-nav button, .tc-bottom-nav a');
+    var order = ['home','chat','capsules','memories','journal','settings'];
+    var idx = order.indexOf(target);
+    if (idx >= 0 && labels[idx]) labels[idx].classList.add('tc-tour-glow');
+  }
+
+  function run(steps){
+    var i = 0, t = UI[lang()];
+
+    var back = document.createElement('div');
+    back.id = 'tc-tour';
+    back.style.cssText =
+      'position:fixed;inset:0;z-index:900;background:rgba(8,4,18,.86);' +
+      '-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);' +
+      'display:flex;align-items:flex-end;justify-content:center;padding:20px;' +
+      'font-family:-apple-system,sans-serif';
+
+    var card = document.createElement('div');
+    card.style.cssText =
+      'width:100%;max-width:360px;box-sizing:border-box;color:#F4EEFF;' +
+      'background:linear-gradient(180deg,#2b1c4c,#1a1132);' +
+      'border:1px solid rgba(255,255,255,.14);border-radius:24px;' +
+      'padding:26px 22px calc(22px + env(safe-area-inset-bottom));' +
+      'box-shadow:0 22px 50px rgba(0,0,0,.6);' +
+      'animation:tcTourIn 260ms cubic-bezier(.2,.9,.3,1.05)';
+
+    var icon = document.createElement('div');
+    icon.style.cssText = 'font-size:38px;text-align:center;line-height:1;margin-bottom:12px';
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:19px;font-weight:700;text-align:center;margin-bottom:8px;letter-spacing:-.2px';
+    var p = document.createElement('div');
+    p.style.cssText = 'font-size:14px;line-height:1.6;text-align:center;color:#CFC2E8';
+
+    var dots = document.createElement('div');
+    dots.style.cssText = 'display:flex;gap:6px;justify-content:center;margin:18px 0 16px';
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;align-items:center';
+    var skip = document.createElement('button');
+    skip.textContent = t.skip;
+    skip.style.cssText = 'background:none;border:none;color:#A99BC8;font-size:13px;padding:12px 6px;flex:none';
+    var next = document.createElement('button');
+    next.style.cssText =
+      'flex:1;background:linear-gradient(135deg,#A97CEC,#6A4BB0);border:none;border-radius:15px;' +
+      'color:#fff;font-weight:600;font-size:14px;padding:14px;box-shadow:0 5px 16px rgba(106,75,176,.4)';
+
+    function paint(){
+      var st = steps[i];
+      icon.textContent = st.icon;
+      h.textContent = st.title;
+      p.textContent = st.text;
+      next.textContent = (i === steps.length - 1) ? t.done : t.next;
+      dots.innerHTML = '';
+      steps.forEach(function(_, k){
+        var d = document.createElement('div');
+        d.style.cssText = 'width:6px;height:6px;border-radius:50%;background:' +
+          (k === i ? '#A97CEC' : 'rgba(255,255,255,.22)');
+        dots.appendChild(d);
+      });
+      highlight(st.target);
+    }
+
+    function finish(){
+      highlight(null);
+      back.remove();
+      var id = accountId();
+      if (id) markSeen(id);
+    }
+
+    next.onclick = function(){ if (i < steps.length - 1){ i++; paint(); } else finish(); };
+    skip.onclick = finish;
+
+    row.appendChild(skip); row.appendChild(next);
+    card.appendChild(icon); card.appendChild(h); card.appendChild(p);
+    card.appendChild(dots); card.appendChild(row);
+    back.appendChild(card);
+    document.body.appendChild(back);
+    paint();
+  }
+
+  var style = document.createElement('style');
+  style.textContent =
+    '@keyframes tcTourIn{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}' +
+    '.tc-tour-glow{position:relative;border-radius:12px;' +
+    'box-shadow:0 0 0 2px #A97CEC, 0 0 18px rgba(169,124,236,.7);transition:box-shadow 220ms ease}';
+  document.head.appendChild(style);
+
+  async function maybeStart(){
+    var id = accountId();
+    if (!id) return setTimeout(maybeStart, 1200);          // not logged in yet
+    if (document.getElementById('tc-tour')) return;
+    try { if (localStorage.getItem("tc_tour_done") === "1") return; } catch(e){}
+    if (await alreadySeen(id)) return;
+    if (!document.querySelector('.tc-bottom-nav')) return setTimeout(maybeStart, 900);
+    run(STEPS[lang()]);
+  }
+
+  window.tcShowTour = function(){ run(STEPS[lang()]); };   // so it can be replayed later
+  window.addEventListener('load', function(){ setTimeout(maybeStart, 1600); });
+})();
+</script>
 </body>
 </html>
