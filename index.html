@@ -2618,6 +2618,27 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }, true);
 
   /* ---------- attach the reply to the next message sent ---------- */
+  /* draw the quote immediately on my newest bubble, so there's no visible delay */
+  function paintQuoteNow(ref){
+    var rows = document.querySelectorAll(".tc-bubble-row.me");
+    var row = rows[rows.length - 1];
+    if (!row) return;
+    var bubble = row.querySelector(".tc-bubble");
+    if (!bubble || bubble.querySelector(".tc-quote")) return;
+
+    var q = document.createElement("div");
+    q.className = "tc-quote";
+    q.setAttribute("data-qid", ref.id);
+    var who = document.createElement("span");
+    who.className = "tc-quote-who";
+    who.textContent = ref.senderName;
+    var tx = document.createElement("span");
+    tx.className = "tc-quote-txt";
+    tx.textContent = ref.text;
+    q.appendChild(who); q.appendChild(tx);
+    bubble.insertBefore(q, bubble.firstChild);
+  }
+
   async function tagLastMessage(){
     if (!pending) return;
     var id = me();
@@ -2625,6 +2646,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var ref = pending;
     pending = null;
     showComposer();
+    // show it at once; the database write follows
+    for (var d = 0; d <= 700; d += 120) setTimeout(function(){ paintQuoteNow(ref); }, d);
     try {
       // the message we just sent is our newest one
       var r = await fetch(
@@ -2649,10 +2672,10 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (!bar || bar.__tcReplyHook) return;
     bar.__tcReplyHook = true;
     var send = bar.querySelector(".tc-chat-send");
-    if (send) send.addEventListener("click", function(){ setTimeout(tagLastMessage, 500); });
+    if (send) send.addEventListener("click", function(){ setTimeout(tagLastMessage, 120); });
     var field = bar.querySelector('textarea[data-chatinput="1"], input[data-chatinput="1"]');
     if (field) field.addEventListener("keydown", function(e){
-      if (e.key === "Enter" && !e.shiftKey) setTimeout(tagLastMessage, 500);
+      if (e.key === "Enter" && !e.shiftKey) setTimeout(tagLastMessage, 120);
     });
   }
 
