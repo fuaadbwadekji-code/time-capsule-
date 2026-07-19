@@ -152,12 +152,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 }.tc-root .tc-preset-btn, .tc-root .tc-type-btn { border-radius: var(--r-md) !important; }.tc-root .tc-chat-header {
   border-bottom: 1px solid var(--line-soft) !important;
   z-index: 50 !important;
-}.tc-root .tc-chat-title { font-weight: 650; letter-spacing: -0.2px; }.tc-root .tc-chat-sub { color: var(--ink-faint) !important; font-size: 0.74em !important; }.tc-root .tc-bubble {
-  border-radius: 20px !important;
-  padding: 10px 14px !important;
-  line-height: 1.45 !important;
-  font-size: 0.94em;
-}.tc-root .tc-bubble-row.me .tc-bubble { border-bottom-right-radius: 7px !important; }.tc-root .tc-bubble-row.them .tc-bubble { border-bottom-left-radius: 7px !important; }.tc-root .tc-bubble-time { font-size: 0.62em !important; opacity: 0.5; }.tc-root .tc-chat-inputbar {
+}.tc-root .tc-chat-title { font-weight: 650; letter-spacing: -0.2px; }.tc-root .tc-chat-sub { color: var(--ink-faint) !important; font-size: 0.74em !important; }.tc-root .tc-bubble-time { font-size: 0.62em !important; opacity: 0.5; }.tc-root .tc-chat-inputbar {
   background: rgba(20,12,40,0.94) !important;
   border-top: 1px solid var(--line-soft) !important;
   border-radius: 0 !important;
@@ -433,22 +428,9 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 
 /* The conversation keeps a steady size — the text-size slider governs the rest
    of the app, but messages should stay comfortable to read. */
-.tc-root .tc-bubble,
-.tc-root .tc-bubble span,
-.tc-root .tc-quote-txt,
-.tc-root #tc-editbox {
-  font-size: 14.4px !important;      /* the app's original 0.9em at a 16px base */
-  line-height: 1.55 !important;
-}
-.tc-root .tc-quote-who { font-size: 11px !important; }
-.tc-root .tc-bubble-time { font-size: 10px !important; }
-.tc-root .tc-chat-title { font-size: 15px !important; }
-.tc-root .tc-chat-sub { font-size: 11px !important; }
-.tc-root .tc-bubble {
-  padding: 10px 14px !important;
-  max-width: 75% !important;
-  border-radius: 18px !important;
-}
+/* The app sizes the conversation itself (0.9em). Leave that alone — only stop the
+   text-size slider from pushing it past a comfortable maximum. */
+.tc-root .tc-chat-screen-wrap { font-size: min(1em, 16px); }
 
 /* Nothing inside a conversation may use a caps-only display face. Bebas Neue has no
    lowercase letters at all, so a message set in it reads as shouting. */
@@ -3020,6 +3002,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   /* 1 · a single source of truth for "the user is scrolling" */
   function begin(){
+    // ignore the tiny scroll a screen makes as it lays itself out
+    if (document.visibilityState !== "visible") return;
     if (!scrolling) {
       scrolling = true;
       window.__tcScrolling = true;
@@ -3036,7 +3020,6 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }
   document.addEventListener("scroll", begin, { passive:true, capture:true });
   document.addEventListener("touchmove", begin, { passive:true, capture:true });
-  document.addEventListener("touchstart", begin, { passive:true, capture:true });
 
   /* 2 · hold every observer and interval for the duration */
   var heldObservers = [];
@@ -3044,7 +3027,13 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   function PatchedMO(cb){
     var self = this;
     var mo = new NativeMO(function(muts, obs){
-      if (window.__tcScrolling) return;      // ignore churn mid-scroll
+      if (window.__tcScrolling) {
+        // Don't drop the work — run it as soon as the finger lifts, otherwise a screen
+        // opened mid-gesture stays blank until the next mutation comes along.
+        clearTimeout(self._pending);
+        self._pending = setTimeout(function(){ cb(muts, obs); }, 200);
+        return;
+      }
       cb(muts, obs);
     });
     this._mo = mo;
