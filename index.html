@@ -2412,11 +2412,39 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       }
     }, 120);
 
-    // hide the original but keep it working underneath
-    input.style.cssText = "position:absolute;opacity:0;pointer-events:none;width:1px;height:1px";
+    // Hide the original from the system as well as the eye. iOS shows its ^ v arrows
+    // whenever it finds more than one focusable field, so this one must not count.
+    input.style.cssText =
+      "position:absolute;left:-9999px;top:0;opacity:0;pointer-events:none;width:1px;height:1px";
     input.setAttribute("aria-hidden", "true");
+    input.setAttribute("tabindex", "-1");
+    input.readOnly = true;                    // not a field the keyboard can move to
     input.removeAttribute("data-chatinput");
     input.__tcBox = box;
+
+    // While the conversation is open, take every other field out of the focus order.
+    function isolate(){
+      var wrap = document.querySelector(".tc-chat-screen-wrap");
+      document.querySelectorAll("input, textarea, select, [contenteditable]").forEach(function(el){
+        if (el === box) return;
+        var insideChat = wrap && wrap.contains(el);
+        if (!insideChat || el === input) {
+          if (!el.hasAttribute("data-tc-tab")) {
+            el.setAttribute("data-tc-tab", el.getAttribute("tabindex") || "");
+          }
+          el.setAttribute("tabindex", "-1");
+        }
+      });
+    }
+    function restore(){
+      document.querySelectorAll("[data-tc-tab]").forEach(function(el){
+        var v = el.getAttribute("data-tc-tab");
+        if (v) el.setAttribute("tabindex", v); else el.removeAttribute("tabindex");
+        el.removeAttribute("data-tc-tab");
+      });
+    }
+    box.addEventListener("focus", isolate);
+    box.addEventListener("blur", function(){ setTimeout(restore, 120); });
 
     input.parentNode.insertBefore(box, input);
 
