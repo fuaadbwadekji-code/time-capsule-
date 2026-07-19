@@ -437,14 +437,18 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 .tc-root .tc-bubble span,
 .tc-root .tc-quote-txt,
 .tc-root #tc-editbox {
-  font-size: 13.5px !important;
-  line-height: 1.42 !important;
+  font-size: 14.4px !important;      /* the app's original 0.9em at a 16px base */
+  line-height: 1.55 !important;
 }
-.tc-root .tc-quote-who { font-size: 10.5px !important; }
-.tc-root .tc-bubble-time { font-size: 9.5px !important; }
+.tc-root .tc-quote-who { font-size: 11px !important; }
+.tc-root .tc-bubble-time { font-size: 10px !important; }
 .tc-root .tc-chat-title { font-size: 15px !important; }
 .tc-root .tc-chat-sub { font-size: 11px !important; }
-.tc-root .tc-bubble { padding: 8px 12px !important; }
+.tc-root .tc-bubble {
+  padding: 10px 14px !important;
+  max-width: 75% !important;
+  border-radius: 18px !important;
+}
 
 /* Nothing inside a conversation may use a caps-only display face. Bebas Neue has no
    lowercase letters at all, so a message set in it reads as shouting. */
@@ -3007,5 +3011,88 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   setTimeout(start, 300);
 })();
 </script>
+<script>
+/* ── Give the scroll the whole frame ─────────────────────────────────
+   Eleven observers and eighteen timers were competing with the finger.
+   While a scroll is in flight, suspend all of them and resume just after. */
+(function(){
+  var scrolling = false, endTimer = null;
+
+  /* 1 · a single source of truth for "the user is scrolling" */
+  function begin(){
+    if (!scrolling) {
+      scrolling = true;
+      window.__tcScrolling = true;
+      document.documentElement.classList.add("tc-scrolling");
+    }
+    clearTimeout(endTimer);
+    endTimer = setTimeout(end, 180);
+  }
+  function end(){
+    scrolling = false;
+    window.__tcScrolling = false;
+    document.documentElement.classList.remove("tc-scrolling");
+    resumeAll();
+  }
+  document.addEventListener("scroll", begin, { passive:true, capture:true });
+  document.addEventListener("touchmove", begin, { passive:true, capture:true });
+  document.addEventListener("touchstart", begin, { passive:true, capture:true });
+
+  /* 2 · hold every observer and interval for the duration */
+  var heldObservers = [];
+  var NativeMO = window.MutationObserver;
+  function PatchedMO(cb){
+    var self = this;
+    var mo = new NativeMO(function(muts, obs){
+      if (window.__tcScrolling) return;      // ignore churn mid-scroll
+      cb(muts, obs);
+    });
+    this._mo = mo;
+    this.observe = function(){ self._args = arguments; return mo.observe.apply(mo, arguments); };
+    this.disconnect = function(){ return mo.disconnect(); };
+    this.takeRecords = function(){ return mo.takeRecords(); };
+    heldObservers.push(this);
+  }
+  window.MutationObserver = PatchedMO;
+
+  var NativeInterval = window.setInterval;
+  var timers = [];
+  window.setInterval = function(fn, ms){
+    var wrapped = function(){
+      if (window.__tcScrolling) return;      // skip a beat rather than stutter
+      return fn.apply(this, arguments);
+    };
+    var id = NativeInterval(wrapped, ms);
+    timers.push(id);
+    return id;
+  };
+
+  function resumeAll(){ /* nothing to undo — the guards simply stop skipping */ }
+})();
+</script>
+<style>
+/* Cheap frames while moving: no blur, no shadows, no transitions. */
+html.tc-scrolling .tc-bubble,
+html.tc-scrolling .tc-card,
+html.tc-scrolling .tc-quote { box-shadow: none !important; }
+html.tc-scrolling * {
+  transition: none !important;
+  animation-play-state: paused !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Let the thread scroll on its own layer. */
+.tc-chat-body-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+/* Each message is its own paint island, so one bubble never repaints the rest. */
+.tc-bubble-row { contain: content; }
+/* Images reserve their space so the thread doesn't jump as they load. */
+.tc-bubble img { content-visibility: auto; }
+</style>
 </body>
 </html>
