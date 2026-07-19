@@ -2815,5 +2815,203 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   font-variant-caps: normal !important;
 }
 </style>
+<script>
+/* ── A second theme, chosen per account ──────────────────────────────
+   "classic" keeps the violet night look. "dark" is the flatter, quieter
+   scheme from DAY//2004, with a WhatsApp-style conversation.           */
+(function(){
+  var T = {
+    fr: { title:"Thème", classic:"Violet", dark:"Sombre",
+          hint:"Le thème est propre à votre compte." },
+    tr: { title:"Tema", classic:"Mor", dark:"Koyu",
+          hint:"Tema yalnızca sizin hesabınız içindir." }
+  };
+  function L(){ return T[(window.__tcLang === "tr") ? "tr" : "fr"]; }
+  function acc(){ try { return localStorage.getItem("tc_account_id") || "x"; } catch(e){ return "x"; } }
+  function keyName(){ return "tc_theme_" + acc(); }
+
+  function current(){
+    try { return localStorage.getItem(keyName()) || "classic"; } catch(e){ return "classic"; }
+  }
+
+  var CSS = `
+/* ── DARK ─────────────────────────────────────────────────────────── */
+.tc-root[data-theme="dark"] {
+  --ink:#FFFFFF; --ink-soft:#C9C9CE; --ink-faint:#8E8E96;
+  --violet:#C8B79E; --violet-dp:#8A7A63;
+  --surface:rgba(255,255,255,0.045); --surface-2:rgba(255,255,255,0.075);
+  --line:rgba(255,255,255,0.10); --line-soft:rgba(255,255,255,0.06);
+}
+html[data-tc-theme="dark"], body[data-tc-theme="dark"] { background:#0B0B0F !important; }
+.tc-root[data-theme="dark"] { background:#0B0B0F !important; }
+.tc-root[data-theme="dark"] .tc-screen {
+  background:#0B0B0F !important;
+}
+.tc-root[data-theme="dark"] .tc-card,
+.tc-root[data-theme="dark"] .tc-settings-card,
+.tc-root[data-theme="dark"] .tc-notebook,
+.tc-root[data-theme="dark"] .tc-recorder {
+  background:#15151C !important;
+  border:1px solid #232330 !important;
+  border-radius:16px !important;
+}
+.tc-root[data-theme="dark"] .tc-bottom-nav {
+  background:rgba(11,11,15,0.97) !important;
+  border-top:1px solid #232330 !important;
+}
+.tc-root[data-theme="dark"] .tc-nav-btn.active,
+.tc-root[data-theme="dark"] .tc-nav-item.active { color:#C8B79E !important; }
+.tc-root[data-theme="dark"] .tc-btn-primary,
+.tc-root[data-theme="dark"] .tc-fab,
+.tc-root[data-theme="dark"] .tc-chat-send,
+.tc-root[data-theme="dark"] .tc-rec-btn {
+  background:linear-gradient(135deg,#C8B79E,#8A7A63) !important;
+  color:#0B0B0F !important;
+  box-shadow:0 4px 14px rgba(0,0,0,0.5) !important;
+}
+.tc-root[data-theme="dark"] .tc-cr-icon { filter:saturate(.75); }
+.tc-root[data-theme="dark"] .tc-act-bell,
+.tc-root[data-theme="dark"] #tc-act-bell {
+  background:rgba(21,21,28,.94) !important; border-color:#232330 !important;
+}
+
+/* the conversation, WhatsApp-style */
+.tc-root[data-theme="dark"] .tc-chat-screen-wrap { background:#0B141A !important; }
+.tc-root[data-theme="dark"] .tc-chat-header {
+  background:#1F2C34 !important; border-bottom:none !important;
+}
+.tc-root[data-theme="dark"] .tc-chat-title { color:#E9EDEF !important; }
+.tc-root[data-theme="dark"] .tc-chat-sub { color:rgba(233,237,239,.6) !important; }
+.tc-root[data-theme="dark"] .tc-chat-body-scroll { background:#0B141A !important; }
+.tc-root[data-theme="dark"] .tc-bubble.them {
+  background:#1F2C34 !important; color:#E9EDEF !important;
+  border-radius:8px !important; border-top-left-radius:2px !important;
+}
+.tc-root[data-theme="dark"] .tc-bubble.me {
+  background:#005C4B !important; color:#E9EDEF !important;
+  border-radius:8px !important; border-top-right-radius:2px !important;
+}
+.tc-root[data-theme="dark"] .tc-bubble-time { color:rgba(233,237,239,.5) !important; }
+.tc-root[data-theme="dark"] .tc-seen { color:rgba(233,237,239,.55) !important; }
+.tc-root[data-theme="dark"] .tc-seen.read { color:#53BDEB !important; text-shadow:none !important; }
+.tc-root[data-theme="dark"] .tc-chat-inputbar {
+  background:#1F2C34 !important; border-top:none !important;
+}
+.tc-root[data-theme="dark"] #tc-editbox {
+  background:#2A3942 !important; color:#E9EDEF !important;
+  border:none !important; border-radius:20px !important;
+}
+.tc-root[data-theme="dark"] #tc-editbox:empty::before { color:rgba(233,237,239,.45); }
+.tc-root[data-theme="dark"] .tc-quote {
+  background:rgba(0,0,0,.22) !important;
+  border-inline-start-color:#53BDEB !important;
+}
+.tc-root[data-theme="dark"] #tc-reply-strip {
+  background:#1F2C34 !important; border-top-color:#0B141A !important;
+}
+.tc-root[data-theme="dark"] .tc-chat-back,
+.tc-root[data-theme="dark"] .tc-icon-btn {
+  background:rgba(255,255,255,.08) !important; color:#E9EDEF !important;
+}
+`;
+
+  var styleEl = document.createElement("style");
+  styleEl.id = "tc-theme-css";
+  styleEl.textContent = CSS;
+  document.head.appendChild(styleEl);
+
+  function apply(){
+    var mode = current();
+    var root = document.querySelector(".tc-root");
+    if (root) root.setAttribute("data-theme", mode);
+    document.documentElement.setAttribute("data-tc-theme", mode);
+    document.body && document.body.setAttribute("data-tc-theme", mode);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", mode === "dark" ? "#0B0B0F" : "#170f2b");
+    // keep our stylesheet last so it wins
+    document.head.appendChild(styleEl);
+  }
+  window.tcApplyTheme = apply;
+
+  /* the settings card */
+  function build(){
+    var t = L(), mode = current();
+    var card = document.createElement("div");
+    card.className = "tc-settings-card";
+    card.id = "tc-theme-card";
+    card.style.cssText = "display:flex;flex-direction:column;gap:10px";
+
+    var title = document.createElement("div");
+    title.className = "tc-set-section-title";
+    title.style.margin = "0";
+    title.textContent = t.title;
+
+    var row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:9px";
+
+    [["classic", t.classic, "#3A2A5C", "#A97CEC"],
+     ["dark",    t.dark,    "#15151C", "#C8B79E"]].forEach(function(o){
+      var b = document.createElement("button");
+      b.style.cssText =
+        "flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;" +
+        "padding:13px 8px;border-radius:16px;cursor:pointer;font-size:12.5px;font-weight:600;" +
+        "border:1px solid " + (mode === o[0] ? o[3] : "rgba(255,255,255,.14)") + ";" +
+        "background:" + (mode === o[0] ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.03)") + ";" +
+        "color:" + (mode === o[0] ? "#F4EEFF" : "#A99BC8");
+
+      var swatch = document.createElement("span");
+      swatch.style.cssText =
+        "width:100%;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.12);" +
+        "background:linear-gradient(135deg," + o[2] + "," + o[3] + ")";
+      var lab = document.createElement("span");
+      lab.textContent = o[1];
+
+      b.appendChild(swatch); b.appendChild(lab);
+      b.onclick = function(){
+        try { localStorage.setItem(keyName(), o[0]); } catch(e){}
+        apply();
+        var old = document.getElementById("tc-theme-card");
+        if (old && old.parentNode) old.parentNode.replaceChild(build(), old);
+      };
+      row.appendChild(b);
+    });
+
+    var hint = document.createElement("div");
+    hint.style.cssText = "font-size:0.78em;line-height:1.45;opacity:.72";
+    hint.textContent = t.hint;
+
+    card.appendChild(title); card.appendChild(row); card.appendChild(hint);
+    return card;
+  }
+
+  function place(){
+    if (document.getElementById("tc-theme-card")) return;
+    var fontList = document.querySelector(".tc-font-list");
+    var screen = fontList ? fontList.closest(".tc-screen") : null;
+    if (!screen) {
+      var c = document.querySelector(".tc-screen .tc-settings-card");
+      screen = c ? c.closest(".tc-screen") : null;
+    }
+    if (!screen) return;
+    var anchor = document.getElementById("tc-hero-card") ||
+                 document.getElementById("tc-push-card") ||
+                 screen.querySelector(".tc-settings-card");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(build(), anchor.nextSibling);
+    else screen.appendChild(build());
+  }
+
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(function(){ apply(); place(); }, 60);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 50);
+    mo.observe(document.body, { childList:true, subtree:true });
+    apply(); place();
+  }
+  window.addEventListener("load", start);
+  setTimeout(start, 300);
+})();
+</script>
 </body>
 </html>
