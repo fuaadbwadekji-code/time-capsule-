@@ -2331,5 +2331,101 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 </style>
+<script>
+/* ── The message field grows with a long message ──────────────────────
+   The app renders a single-line <input>, so a long message scrolls out of
+   sight. Swap in a textarea that grows to a few lines, then scrolls.      */
+(function(){
+  var MAX_LINES = 5;
+
+  function convert(){
+    var input = document.querySelector('input[data-chatinput="1"]');
+    if (!input || input.tagName === "TEXTAREA") return;
+
+    var ta = document.createElement("textarea");
+    ta.className = input.className;
+    ta.setAttribute("data-chatinput", "1");
+    ta.placeholder = input.placeholder || "";
+    ta.value = input.value || "";
+    ta.rows = 1;
+    ta.style.cssText =
+      "resize:none;overflow-y:auto;line-height:1.4;max-height:" + (MAX_LINES * 22 + 22) + "px;" +
+      "font-family:inherit;font-size:inherit";
+
+    function grow(){
+      ta.style.height = "auto";
+      ta.style.height = Math.min(ta.scrollHeight, MAX_LINES * 22 + 22) + "px";
+      // a taller field must not hide the newest message
+      var list = document.querySelector(".tc-chat-body-scroll");
+      if (list) {
+        var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 200;
+        if (atBottom) list.scrollTop = list.scrollHeight;
+      }
+    }
+
+    /* keep React's own state in step: write through the native setter and
+       dispatch the event it listens for */
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    function pushToApp(val){
+      setter.call(input, val);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    ta.addEventListener("input", function(){
+      pushToApp(ta.value);
+      grow();
+    });
+
+    ta.addEventListener("keydown", function(e){
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        var evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
+        input.dispatchEvent(evt);
+        setTimeout(function(){ ta.value = ""; grow(); ta.focus(); }, 30);
+      }
+    });
+
+    // when the app clears the field after sending, clear ours too
+    var obs = new MutationObserver(function(){});
+    setInterval(function(){
+      if (document.activeElement !== ta && input.value !== ta.value) {
+        ta.value = input.value;
+        grow();
+      }
+    }, 400);
+
+    // hide the original but keep it in the tree so the app keeps working
+    input.style.position = "absolute";
+    input.style.opacity = "0";
+    input.style.pointerEvents = "none";
+    input.style.width = "1px";
+    input.style.height = "1px";
+    input.setAttribute("aria-hidden", "true");
+    input.removeAttribute("data-chatinput");
+
+    input.parentNode.insertBefore(ta, input);
+    grow();
+  }
+
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(convert, 60);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 50);
+    mo.observe(document.body, { childList: true, subtree: true });
+    convert();
+  }
+  window.addEventListener("load", start);
+})();
+</script>
+<style>
+/* the field is now a textarea — let it breathe */
+.tc-root textarea.tc-chat-text-input {
+  border-radius: 20px !important;
+  padding: 11px 16px !important;
+  min-height: 42px;
+}
+</style>
 </body>
 </html>
