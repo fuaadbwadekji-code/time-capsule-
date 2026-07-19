@@ -915,5 +915,162 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   start();
 })();
 </script>
+<script>
+/* ── Time Capsule · push notifications ─────────────────────────────
+   Registers the service worker, asks permission once, and stores the
+   device subscription so the server can reach this phone later.      */
+(function(){
+  var VAPID_PUBLIC = "BCYcF1zn3ngl14eykylJsRDwX3pGD_wWK8GzVSyqOFFj5KL_DCm0uZDRipWFOZ4qSDtlBqmAc5NTC76viel4AvM";
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+
+  function b64ToU8(base64){
+    var pad = "=".repeat((4 - base64.length % 4) % 4);
+    var raw = atob((base64 + pad).replace(/\-/g,"+").replace(/_/g,"/"));
+    var out = new Uint8Array(raw.length);
+    for (var i=0;i<raw.length;i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function accountId(){
+    try { return localStorage.getItem("tc_account_id"); } catch(e){ return null; }
+  }
+
+  async function saveSubscription(sub){
+    var id = accountId();
+    if (!id) return;
+    var body = {
+      account_id: id,
+      endpoint: sub.endpoint,
+      p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(sub.getKey("p256dh")))),
+      auth:   btoa(String.fromCharCode.apply(null, new Uint8Array(sub.getKey("auth")))),
+      updated_at: new Date().toISOString()
+    };
+    await fetch(SB_URL + "/rest/v1/push_subscriptions?on_conflict=endpoint", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SB_KEY,
+        "Authorization": "Bearer " + SB_KEY,
+        "Prefer": "resolution=merge-duplicates"
+      },
+      body: JSON.stringify(body)
+    });
+  }
+
+  async function enable(){
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      alert("هذا الجهاز لا يدعم الإشعارات، أو التطبيق غير مثبّت على الشاشة الرئيسية.");
+      return false;
+    }
+    var perm = await Notification.requestPermission();
+    if (perm !== "granted") return false;
+
+    var reg = await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64ToU8(VAPID_PUBLIC)
+      });
+    }
+    await saveSubscription(sub);
+    return true;
+  }
+
+  // expose so the in-app button can call it
+  window.tcEnablePush = enable;
+
+  // keep the worker registered on every launch, and refresh the stored subscription
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").then(function(reg){
+        if (Notification.permission === "granted") {
+          reg.pushManager.getSubscription().then(function(sub){ if (sub) saveSubscription(sub); });
+        }
+      }).catch(function(){});
+    });
+  }
+})();
+</script>
+<script>
+/* a small, self-contained settings card — inserted into the Settings screen at runtime
+   so it doesn't depend on the app's internals */
+(function(){
+  var LABELS = {
+    fr: { title:"Notifications", hint:"Recevez une alerte quand une capsule s'ouvre ou qu'un message arrive.",
+          on:"Activer les notifications", done:"Notifications activées \u2713",
+          fail:"Impossible d'activer. Installez l'app sur l'écran d'accueil." },
+    tr: { title:"Bildirimler", hint:"Kapsül açıldığında veya mesaj geldiğinde haber alın.",
+          on:"Bildirimleri aç", done:"Bildirimler açık \u2713",
+          fail:"Açılamadı. Uygulamayı ana ekrana ekleyin." }
+  };
+  function lang(){ return (document.documentElement.lang === 'tr') ? 'tr' : 'fr'; }
+
+  function build(){
+    var t = LABELS[lang()];
+    var card = document.createElement('div');
+    card.className = 'tc-settings-card';
+    card.id = 'tc-push-card';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.gap = '10px';
+
+    var h = document.createElement('div');
+    h.className = 'tc-set-section-title';
+    h.style.margin = '0';
+    h.textContent = t.title;
+
+    var p = document.createElement('div');
+    p.style.cssText = 'font-size:0.78em;line-height:1.45;opacity:.75';
+    p.textContent = t.hint;
+
+    var b = document.createElement('button');
+    b.className = 'tc-btn-primary tc-btn-small';
+    b.textContent = (Notification.permission === 'granted') ? t.done : t.on;
+    if (Notification.permission === 'granted') b.disabled = true;
+
+    b.onclick = async function(){
+      b.disabled = true;
+      try {
+        var ok = await window.tcEnablePush();
+        b.textContent = ok ? t.done : t.on;
+        b.disabled = !!ok;
+        if (!ok) alert(t.fail);
+      } catch (e) {
+        b.disabled = false;
+        alert(t.fail);
+      }
+    };
+
+    card.appendChild(h); card.appendChild(p); card.appendChild(b);
+    return card;
+  }
+
+  function place(){
+    if (document.getElementById('tc-push-card')) return;
+    // the settings screen is the one containing the logout button
+    var logout = document.querySelector('.tc-logout-btn');
+    if (!logout) return;
+    var screen = logout.closest('.tc-screen');
+    if (!screen) return;
+    var first = screen.querySelector('.tc-settings-card');
+    if (first && first.parentNode) first.parentNode.insertBefore(build(), first);
+  }
+
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(place, 40);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 40);
+    mo.observe(document.body, {childList:true, subtree:true});
+    place();
+  }
+  start();
+})();
+</script>
 </body>
 </html>
