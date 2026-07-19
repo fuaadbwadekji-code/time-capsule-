@@ -30,7 +30,13 @@ self.addEventListener('push', (event) => {
     vibrate: [90, 40, 90],
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Skip the banner if the app is already open and focused — the message is on screen.
+  event.waitUntil((async () => {
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const focused = clientList.some((c) => c.visibilityState === 'visible' && c.focused);
+    if (focused) return;
+    return self.registration.showNotification(title, options);
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {

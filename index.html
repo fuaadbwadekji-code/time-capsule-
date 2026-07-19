@@ -1873,6 +1873,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   async function pollTyping(){
     if (!chatOpen() || document.hidden) { showBubble(false); return; }
+    if (window.__tcScrolling) return;      // stay out of the way mid-scroll
     var pid = await findPartner();
     if (!pid) return;
     try {
@@ -1904,7 +1905,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var active = chatOpen() && !document.hidden;
     if (active && !fast) {
       clearInterval(slow); slow = null;
-      fast = setInterval(loop, 700);
+      fast = setInterval(loop, 1000);
     } else if (!active && !fast) {
       // nothing to do — the slow timer below covers it
     }
@@ -1915,7 +1916,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   window.addEventListener("load", function(){
     setTimeout(loop, 900);
     pace();
-    setInterval(pace, 1000);
+    setInterval(pace, 2000);
   });
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) loop(); });
 
@@ -1925,7 +1926,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var now = chatOpen();
     if (now && !wasOpen) { lastMark = 0; markRead(); }
     wasOpen = now;
-  }, 300);
+  }, 500);
 })();
 </script>
 <script>
@@ -1942,6 +1943,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   async function refreshTicks(){
     if (!chatOpen() || document.hidden) return;
+    if (window.__tcScrolling) return;      // stay out of the way mid-scroll
     var id = me();
     if (!id) return;
     try {
@@ -1972,7 +1974,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var active = chatOpen() && !document.hidden;
     if (active && !fastTimer) {
       clearInterval(slowTimer); slowTimer = null;
-      fastTimer = setInterval(refreshTicks, 600);
+      fastTimer = setInterval(refreshTicks, 1000);
     } else if (!active && !slowTimer) {
       clearInterval(fastTimer); fastTimer = null;
       slowTimer = setInterval(refreshTicks, 6000);
@@ -1981,7 +1983,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   window.addEventListener("load", function(){
     setTimeout(refreshTicks, 800);
     setPace();
-    setInterval(setPace, 1000);
+    setInterval(setPace, 2000);
   });
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshTicks(); });
 })();
@@ -2063,6 +2065,9 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   function notifyDevice(text){
     try {
+      // If the app is open and on screen, the activity list is enough — a banner on top
+      // of what you're already reading is just noise.
+      if (!document.hidden && document.visibilityState === "visible") return;
       if (window.Notification && Notification.permission === "granted") {
         if (navigator.serviceWorker && navigator.serviceWorker.ready) {
           navigator.serviceWorker.ready.then(function(reg){
@@ -2260,6 +2265,15 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     paintBadge();
   }
 
+  // The bell has no place inside a conversation — keep it out of the chat.
+  function syncBellVisibility(){
+    var bell = document.getElementById("tc-act-bell");
+    if (!bell) return;
+    var inChat = !!document.querySelector(".tc-chat-screen-wrap");
+    bell.style.display = inChat ? "none" : "flex";
+  }
+  setInterval(syncBellVisibility, 500);
+
   var style = document.createElement("style");
   style.textContent = "@keyframes tcActIn{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}";
   document.head.appendChild(style);
@@ -2277,5 +2291,45 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) scan(); });
 })();
 </script>
+<script>
+/* ── Chat smoothness: get out of the way while the finger is moving ──── */
+(function(){
+  var t = null;
+  function mark(){
+    window.__tcScrolling = true;
+    clearTimeout(t);
+    t = setTimeout(function(){ window.__tcScrolling = false; }, 260);
+  }
+  document.addEventListener("scroll", mark, { passive: true, capture: true });
+  document.addEventListener("touchmove", mark, { passive: true, capture: true });
+})();
+</script>
+<style>
+/* Momentum scrolling and its own compositor layer, so the thread glides
+   instead of repainting the whole screen — the same treatment that made
+   the DAY//2004 chat feel light. */
+.tc-chat-body-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+.tc-bubble-row { contain: layout paint; }
+.tc-bubble { will-change: auto; }
+
+/* Blur is expensive on iOS; keep it off the surfaces that sit behind the
+   scrolling thread. */
+.tc-chat-screen-wrap, .tc-chat-inputbar {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.tc-chat-inputbar { background: #170f2b !important; }
+
+/* Respect the system setting, and stop decorative motion during scroll. */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
 </body>
 </html>
