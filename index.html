@@ -1143,11 +1143,25 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var t = L[lang()];
     if (!window.confirm(t.ask)) return;
     try {
-      var res = await fetch(SB_URL + "/rest/v1/messages?id=neq.00000000-0000-0000-0000-000000000000", {
+      var res = await fetch(SB_URL + "/rest/v1/messages?created_at=not.is.null", {
         method: "DELETE",
-        headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Prefer": "return=minimal" }
+        headers: {
+          "apikey": SB_KEY,
+          "Authorization": "Bearer " + SB_KEY,
+          "Prefer": "return=representation"
+        }
       });
-      if (!res.ok) throw new Error("HTTP " + res.status);
+      var removed = [];
+      try { removed = await res.json(); } catch (_) { removed = []; }
+
+      if (!res.ok) {
+        alert("Erreur " + res.status + " : " + (Array.isArray(removed) ? "" : (removed && removed.message) || ""));
+        return;
+      }
+      if (Array.isArray(removed) && removed.length === 0) {
+        alert("Rien n'a été supprimé — la base refuse la suppression.");
+        return;
+      }
       location.reload();
     } catch (e) {
       alert("Erreur: " + (e && e.message || e));
@@ -1211,7 +1225,16 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   function scan(){
     var h = document.querySelector('.tc-chat-header');
-    if (h) menuFor(h);
+    if (!h) {
+      // fall back: the row containing the back button inside the chat screen
+      var back = document.querySelector('.tc-chat-back');
+      if (back && back.parentElement) h = back.parentElement;
+    }
+    if (h) {
+      if (getComputedStyle(h).display !== 'flex') h.style.display = 'flex';
+      if (getComputedStyle(h).alignItems !== 'center') h.style.alignItems = 'center';
+      menuFor(h);
+    }
   }
   var mo = new MutationObserver(function(){
     if (mo._t) clearTimeout(mo._t);
@@ -1234,49 +1257,72 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   var STEPS = {
     fr: [
       { icon:"\uD83E\uDED9", title:"Bienvenue",
-        text:"Un espace rien qu'à vous deux : des lettres qui s'ouvrent plus tard, vos souvenirs, et vos pensées." },
-      { icon:"\uD83D\uDCAC", target:"chat", title:"Messages",
-        text:"Votre conversation privée. Écrivez, envoyez des photos ou des vocaux — chacun dans sa langue, la traduction se fait toute seule." },
-      { icon:"\uD83D\uDCE6", target:"capsules", title:"Capsules",
-        text:"Écrivez une lettre et choisissez quand elle s'ouvrira : dans une semaine, un an… Elle reste scellée jusque-là." },
-      { icon:"\u2764\uFE0F", target:"memories", title:"Souvenirs",
-        text:"Toutes les capsules déjà ouvertes se rangent ici, comme un album à relire." },
-      { icon:"\uD83D\uDCD6", target:"journal", title:"Journal",
-        text:"Votre journal privé — l'autre ne le voit pas. Après chaque note, un compagnon bienveillant vous répond." },
-      { icon:"\uD83D\uDD14", title:"Notifications",
-        text:"Activez-les dans Paramètres pour être prévenu à chaque message et à chaque capsule qui s'ouvre." }
+        text:"Ceci est votre espace à tous les deux : un endroit pour s'écrire, garder ce qui compte, et laisser des mots que l'autre lira plus tard.\n\nPersonne d'autre n'y a accès." },
+
+      { icon:"\uD83D\uDCAC", target:"chat", title:"1 · Messages",
+        text:"Votre conversation privée.\n\n\u2022 Écrivez, envoyez une photo ou un vocal\n\u2022 Chacun écrit dans SA langue — l'autre le reçoit traduit, automatiquement\n\u2022 Vous voyez quand l'autre est en train d'écrire\n\u2022 Le menu \u22EF en haut permet d'effacer toute la conversation" },
+
+      { icon:"\uD83D\uDCE6", target:"capsules", title:"2 · Capsules",
+        text:"Le cœur de l'application : une lettre qui reste scellée jusqu'à une date choisie.\n\n\u2022 Appuyez sur + pour en créer une\n\u2022 Choisissez le type : message, photo ou vocal\n\u2022 Choisissez quand elle s'ouvre : une semaine, un mois, un an, ou une date précise\n\u2022 Impossible de l'ouvrir avant — même pour celui qui l'a écrite" },
+
+      { icon:"\u2764\uFE0F", target:"memories", title:"3 · Souvenirs",
+        text:"Chaque capsule déjà ouverte vient se ranger ici.\n\nAvec le temps, cela devient un album : vos mots, vos photos et vos voix, classés par date." },
+
+      { icon:"\uD83D\uDCD6", target:"journal", title:"4 · Journal",
+        text:"Votre journal personnel — l'autre ne le voit jamais.\n\n\u2022 Une page par jour, à remplir librement\n\u2022 Après avoir enregistré, un compagnon bienveillant vous répond avec douceur\n\u2022 Vos jours précédents restent accessibles en bas" },
+
+      { icon:"\u2753", title:"5 · Question du jour",
+        text:"Sur la page d'accueil, une question apparaît chaque jour.\n\nVous y répondez chacun de votre côté — et la réponse de l'autre ne se dévoile qu'une fois que vous avez répondu aussi." },
+
+      { icon:"\u2699\uFE0F", target:"settings", title:"6 · Paramètres",
+        text:"\u2022 Changez votre photo et votre nom\n\u2022 Choisissez la police et la taille du texte\n\u2022 Changez l'image de la page d'accueil\n\u2022 Modifiez votre code de connexion\n\u2022 Et surtout : activez les notifications" },
+
+      { icon:"\uD83D\uDD14", title:"Dernière chose",
+        text:"Allez dans Paramètres et appuyez sur « Activer les notifications ».\n\nSans cela, vous ne serez pas prévenu quand un message arrive ou qu'une capsule s'ouvre.\n\nVoilà, tout est à vous." }
     ],
     tr: [
       { icon:"\uD83E\uDED9", title:"Hoş geldin",
-        text:"Sadece ikinize ait bir alan: sonra açılacak mektuplar, anılarınız ve düşünceleriniz." },
-      { icon:"\uD83D\uDCAC", target:"chat", title:"Mesajlar",
-        text:"Özel sohbetiniz. Yazın, fotoğraf veya sesli mesaj gönderin — herkes kendi dilinde, çeviri kendiliğinden." },
-      { icon:"\uD83D\uDCE6", target:"capsules", title:"Kapsüller",
-        text:"Bir mektup yazın ve ne zaman açılacağını seçin: bir hafta, bir yıl… O ana kadar mühürlü kalır." },
-      { icon:"\u2764\uFE0F", target:"memories", title:"Anılar",
-        text:"Açılmış tüm kapsüller burada birikir — tekrar okunacak bir albüm gibi." },
-      { icon:"\uD83D\uDCD6", target:"journal", title:"Günlük",
-        text:"Kişisel günlüğünüz — diğeri göremez. Her nottan sonra sıcak bir yoldaş size cevap verir." },
-      { icon:"\uD83D\uDD14", title:"Bildirimler",
-        text:"Her mesajda ve açılan her kapsülde haberdar olmak için Ayarlar'dan açın." }
+        text:"Burası ikinize ait bir alan: birbirinize yazmak, önemli olanı saklamak ve sonra okunacak sözler bırakmak için.\n\nBaşka kimse giremez." },
+
+      { icon:"\uD83D\uDCAC", target:"chat", title:"1 · Mesajlar",
+        text:"Özel sohbetiniz.\n\n\u2022 Yazın, fotoğraf veya sesli mesaj gönderin\n\u2022 Herkes KENDİ dilinde yazar — karşı taraf çevrilmiş olarak alır\n\u2022 Karşınızdaki yazarken görürsünüz\n\u2022 Üstteki \u22EF menüsünden tüm sohbeti silebilirsiniz" },
+
+      { icon:"\uD83D\uDCE6", target:"capsules", title:"2 · Kapsüller",
+        text:"Uygulamanın kalbi: seçilen tarihe kadar mühürlü kalan bir mektup.\n\n\u2022 Oluşturmak için + düğmesine basın\n\u2022 Türü seçin: mesaj, fotoğraf veya ses\n\u2022 Ne zaman açılacağını seçin: bir hafta, bir ay, bir yıl ya da belirli bir tarih\n\u2022 O ana kadar açılamaz — yazan kişi bile açamaz" },
+
+      { icon:"\u2764\uFE0F", target:"memories", title:"3 · Anılar",
+        text:"Açılan her kapsül buraya gelir.\n\nZamanla bir albüme dönüşür: sözleriniz, fotoğraflarınız ve sesleriniz, tarihe göre." },
+
+      { icon:"\uD83D\uDCD6", target:"journal", title:"4 · Günlük",
+        text:"Kişisel günlüğünüz — diğeri asla göremez.\n\n\u2022 Her gün için bir sayfa\n\u2022 Kaydettikten sonra sıcak bir yoldaş size nazikçe cevap verir\n\u2022 Önceki günler aşağıda durur" },
+
+      { icon:"\u2753", title:"5 · Günün sorusu",
+        text:"Ana sayfada her gün bir soru çıkar.\n\nHer biriniz ayrı ayrı cevaplar — diğerinin cevabı ancak siz de cevapladıktan sonra görünür." },
+
+      { icon:"\u2699\uFE0F", target:"settings", title:"6 · Ayarlar",
+        text:"\u2022 Fotoğrafınızı ve adınızı değiştirin\n\u2022 Yazı tipini ve boyutunu seçin\n\u2022 Ana sayfa görselini değiştirin\n\u2022 Giriş kodunuzu güncelleyin\n\u2022 Ve en önemlisi: bildirimleri açın" },
+
+      { icon:"\uD83D\uDD14", title:"Son bir şey",
+        text:"Ayarlar'a gidin ve «Bildirimleri aç» düğmesine basın.\n\nAksi halde mesaj geldiğinde veya kapsül açıldığında haberiniz olmaz.\n\nHepsi bu — artık sizin." }
     ]
   };
   var UI = { fr:{next:"Suivant", done:"C'est parti", skip:"Passer"},
              tr:{next:"İleri",   done:"Başlayalım", skip:"Atla"} };
 
-  function lang(){ return document.documentElement.lang === 'tr' ? 'tr' : 'fr'; }
+  function lang(){ return ACCOUNT_LANG === 'tr' ? 'tr' : 'fr'; }
   function accountId(){ try { return localStorage.getItem("tc_account_id"); } catch(e){ return null; } }
 
-  async function alreadySeen(id){
+  var ACCOUNT_LANG = null;
+
+  async function loadAccount(id){
     try {
-      var r = await fetch(SB_URL + "/rest/v1/accounts?id=eq." + id + "&select=tour_done", {
+      var r = await fetch(SB_URL + "/rest/v1/accounts?id=eq." + id + "&select=tour_done,ui_lang", {
         headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY }
       });
       var rows = await r.json();
-      // if the column doesn't exist yet, treat as "not seen" but don't loop forever
-      if (!Array.isArray(rows)) return true;
-      return !!(rows[0] && rows[0].tour_done);
-    } catch (e) { return true; }
+      if (!Array.isArray(rows) || !rows[0]) return { seen:false, lang:null };
+      return { seen: !!rows[0].tour_done, lang: rows[0].ui_lang || null };
+    } catch (e) { return { seen:false, lang:null }; }
   }
 
   async function markSeen(id){
@@ -1323,9 +1369,9 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var icon = document.createElement('div');
     icon.style.cssText = 'font-size:38px;text-align:center;line-height:1;margin-bottom:12px';
     var h = document.createElement('div');
-    h.style.cssText = 'font-size:19px;font-weight:700;text-align:center;margin-bottom:8px;letter-spacing:-.2px';
+    h.style.cssText = 'font-size:19px;font-weight:700;text-align:center;margin-bottom:12px;letter-spacing:-.2px';
     var p = document.createElement('div');
-    p.style.cssText = 'font-size:14px;line-height:1.6;text-align:center;color:#CFC2E8';
+    p.style.cssText = 'font-size:14px;line-height:1.68;text-align:start;color:#CFC2E8;white-space:pre-line;max-height:46dvh;overflow-y:auto;overscroll-behavior:contain';
 
     var dots = document.createElement('div');
     dots.style.cssText = 'display:flex;gap:6px;justify-content:center;margin:18px 0 16px';
@@ -1386,13 +1432,41 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (!id) return setTimeout(maybeStart, 1200);          // not logged in yet
     if (document.getElementById('tc-tour')) return;
     try { if (localStorage.getItem("tc_tour_done") === "1") return; } catch(e){}
-    if (await alreadySeen(id)) return;
+    var info = await loadAccount(id);
+    ACCOUNT_LANG = info.lang;
+    if (info.seen) return;
     if (!document.querySelector('.tc-bottom-nav')) return setTimeout(maybeStart, 900);
     run(STEPS[lang()]);
   }
 
   window.tcShowTour = function(){ run(STEPS[lang()]); };   // so it can be replayed later
   window.addEventListener('load', function(){ setTimeout(maybeStart, 1600); });
+})();
+</script>
+<script>
+/* type  tcDiag()  in the address bar as  javascript:tcDiag()  — or tap 7 times on the
+   bottom nav — to see what actually loaded. */
+(function(){
+  window.tcDiag = function(){
+    var lines = [
+      "tour script: " + (typeof window.tcShowTour === "function" ? "OK" : "MISSING"),
+      "push script: " + (typeof window.tcEnablePush === "function" ? "OK" : "MISSING"),
+      "account id : " + (localStorage.getItem("tc_account_id") || "none"),
+      "tour_done  : " + (localStorage.getItem("tc_tour_done") || "not set"),
+      "chat header: " + (document.querySelector(".tc-chat-header") ? "found" : "not on screen"),
+      "menu button: " + (document.querySelector(".tc-x-menu-wrap") ? "added" : "absent"),
+      "bottom nav : " + (document.querySelector(".tc-bottom-nav") ? "found" : "absent")
+    ];
+    alert(lines.join("\n"));
+  };
+  var taps = 0, timer = null;
+  document.addEventListener("click", function(e){
+    if (!e.target.closest || !e.target.closest(".tc-bottom-nav")) return;
+    taps++;
+    clearTimeout(timer);
+    timer = setTimeout(function(){ taps = 0; }, 1200);
+    if (taps >= 7) { taps = 0; window.tcDiag(); }
+  }, true);
 })();
 </script>
 </body>
