@@ -2583,6 +2583,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (!bubble || bubble.querySelector(".tc-quote")) return;
     var q=document.createElement("div");
     q.className="tc-quote"; q.setAttribute("data-qid", ref.id);
+    q.setAttribute("data-temp","1");   // removed once the real one arrives
     var w=document.createElement("span"); w.className="tc-quote-who"; w.textContent=ref.senderName;
     var t=document.createElement("span"); t.className="tc-quote-txt"; t.textContent=ref.text;
     q.appendChild(w); q.appendChild(t);
@@ -2633,11 +2634,23 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     ".tc-bubble-row{touch-action:pan-y}";
   document.head.appendChild(style);
 
+  // If a bubble ends up with both the placeholder quote and the real one, drop the
+  // placeholder — otherwise the same message appears quoted twice.
+  function dedupeQuotes(){
+    document.querySelectorAll(".tc-bubble").forEach(function(b){
+      var qs = b.querySelectorAll(".tc-quote");
+      if (qs.length < 2) return;
+      var temps = b.querySelectorAll('.tc-quote[data-temp="1"]');
+      temps.forEach(function(t){ if (b.querySelectorAll(".tc-quote").length > 1) t.remove(); });
+    });
+  }
+
   var mo=new MutationObserver(function(){
     if (mo._t) clearTimeout(mo._t);
     mo._t=setTimeout(function(){
       document.querySelectorAll(".tc-bubble-row").forEach(hook);
       watchSend();
+      dedupeQuotes();
     }, 80);
   });
   function start(){
@@ -2655,20 +2668,47 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   function attach(list){
     if (list.__tcHold) return;
     list.__tcHold = true;
-    var atBottom = true, lastTop = list.scrollTop;
+
+    var pinned = false;          // true while the reader is up in the history
+    var holdAt = 0;
+
     list.addEventListener("scroll", function(){
-      atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
-    }, { passive:true });
-    var guard = setInterval(function(){
-      if (!document.body.contains(list)) { clearInterval(guard); return; }
-      if (atBottom) { lastTop = list.scrollTop; return; }
-      var jumped = list.scrollTop - lastTop;
-      if (jumped > 40 && list.scrollHeight - list.scrollTop - list.clientHeight < 60) {
-        list.scrollTop = lastTop;
-      } else {
-        lastTop = list.scrollTop;
+      var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+      if (!list.__tcProgrammatic) {
+        pinned = !atBottom;
+        if (pinned) holdAt = list.scrollTop;
       }
-    }, 120);
+    }, { passive:true });
+
+    // The app calls scrollTo / sets scrollTop to follow new messages. Let it through
+    // only when the reader is already at the end.
+    var nativeScrollTo = list.scrollTo.bind(list);
+    list.scrollTo = function(){
+      if (pinned) return;
+      list.__tcProgrammatic = true;
+      nativeScrollTo.apply(null, arguments);
+      setTimeout(function(){ list.__tcProgrammatic = false; }, 60);
+    };
+
+    var proto = Object.getPrototypeOf(list);
+    var desc = Object.getOwnPropertyDescriptor(proto, "scrollTop") ||
+               Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    if (desc && desc.set) {
+      Object.defineProperty(list, "scrollTop", {
+        configurable: true,
+        get: function(){ return desc.get.call(list); },
+        set: function(v){
+          if (pinned) {
+            // ignore a jump to the bottom, allow anything else (e.g. our own restore)
+            var toBottom = v >= list.scrollHeight - list.clientHeight - 60;
+            if (toBottom) return;
+          }
+          list.__tcProgrammatic = true;
+          desc.set.call(list, v);
+          setTimeout(function(){ list.__tcProgrammatic = false; }, 60);
+        }
+      });
+    }
   }
   var mo = new MutationObserver(function(){
     var l = document.querySelector(".tc-chat-body-scroll");
