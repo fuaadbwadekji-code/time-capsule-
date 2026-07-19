@@ -2348,6 +2348,17 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     ta.placeholder = input.placeholder || "";
     ta.value = input.value || "";
     ta.rows = 1;
+    // keyboard behaviour: a capital at the start of a sentence, nothing more
+    ta.setAttribute("autocapitalize", "sentences");
+    ta.setAttribute("autocorrect", "on");
+    ta.setAttribute("spellcheck", "true");
+    ta.setAttribute("enterkeyhint", "send");
+    ta.setAttribute("inputmode", "text");
+    ta.style.textTransform = "none";
+    // carry over anything the original field declared
+    ["lang", "dir", "maxlength"].forEach(function(a){
+      if (input.hasAttribute(a)) ta.setAttribute(a, input.getAttribute(a));
+    });
     ta.style.cssText =
       "resize:none;overflow-y:auto;line-height:1.4;max-height:" + (MAX_LINES * 22 + 22) + "px;" +
       "font-family:inherit;font-size:inherit";
@@ -2443,6 +2454,13 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   border-radius: 20px !important;
   padding: 11px 16px !important;
   min-height: 42px;
+}
+.tc-root .tc-bubble,
+.tc-root .tc-bubble span,
+.tc-root textarea.tc-chat-text-input,
+.tc-root .tc-chat-text-input {
+  text-transform: none !important;
+  font-variant-caps: normal !important;
 }
 </style>
 </body>
