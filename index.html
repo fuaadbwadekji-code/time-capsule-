@@ -1851,7 +1851,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     list.appendChild(row);
 
     // keep it in view, like a real incoming message
-    var nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 160;
+    var nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
     if (nearBottom) list.scrollTop = list.scrollHeight;
   }
 
@@ -2332,105 +2332,101 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 }
 </style>
 <script>
-/* ── The message field grows with a long message ──────────────────────
-   The app renders a single-line <input>, so a long message scrolls out of
-   sight. Swap in a textarea that grows to a few lines, then scrolls.      */
+/* ── Message field that grows, without the iOS accessory bar ───────────
+   A <textarea> makes iOS show its form-navigation strip (^ v ✓). A
+   contenteditable element behaves like a text box but iOS leaves it alone,
+   so the keyboard sits directly under the field.                         */
 (function(){
-  var MAX_LINES = 5;
+  var MAX_H = 130;
 
   function convert(){
     var input = document.querySelector('input[data-chatinput="1"]');
-    if (!input || input.tagName === "TEXTAREA") return;
+    if (!input) return;
+    if (input.__tcBox && document.body.contains(input.__tcBox)) return;
 
-    var ta = document.createElement("textarea");
-    ta.className = input.className;
-    ta.setAttribute("data-chatinput", "1");
-    ta.placeholder = input.placeholder || "";
-    ta.value = input.value || "";
-    ta.rows = 1;
-    // keyboard behaviour: a capital at the start of a sentence, nothing more
-    ta.setAttribute("autocapitalize", "sentences");
-    ta.setAttribute("autocorrect", "on");
-    ta.setAttribute("spellcheck", "true");
-    ta.setAttribute("enterkeyhint", "send");
-    ta.setAttribute("inputmode", "text");
-    ta.style.textTransform = "none";
-    // carry over anything the original field declared
-    ["lang", "dir", "maxlength"].forEach(function(a){
-      if (input.hasAttribute(a)) ta.setAttribute(a, input.getAttribute(a));
-    });
-    ta.style.cssText =
-      "resize:none;overflow-y:auto;line-height:1.4;max-height:" + (MAX_LINES * 22 + 22) + "px;" +
-      "font-family:inherit;font-size:inherit";
+    var box = document.createElement("div");
+    box.className = input.className;
+    box.setAttribute("contenteditable", "plaintext-only");
+    box.setAttribute("role", "textbox");
+    box.setAttribute("aria-label", input.placeholder || "");
+    box.setAttribute("data-ph", input.placeholder || "");
+    box.setAttribute("autocapitalize", "sentences");
+    box.setAttribute("autocorrect", "on");
+    box.setAttribute("spellcheck", "true");
+    box.setAttribute("enterkeyhint", "send");
+    box.id = "tc-editbox";
+    box.style.cssText =
+      "max-height:" + MAX_H + "px;overflow-y:auto;line-height:1.4;white-space:pre-wrap;" +
+      "word-break:break-word;text-transform:none;-webkit-user-select:text;user-select:text;" +
+      "outline:none";
 
-    function grow(){
-      ta.style.height = "auto";
-      ta.style.height = Math.min(ta.scrollHeight, MAX_LINES * 22 + 22) + "px";
-      // a taller field must not hide the newest message
-      var list = document.querySelector(".tc-chat-body-scroll");
-      if (list) {
-        var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 200;
-        if (atBottom) list.scrollTop = list.scrollHeight;
-      }
-    }
+    // Safari before 17 doesn't know plaintext-only
+    if (box.contentEditable !== "plaintext-only") box.setAttribute("contenteditable", "true");
 
-    /* keep React's own state in step: write through the native setter and
-       dispatch the event it listens for */
     var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
     function pushToApp(val){
       setter.call(input, val);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
-    ta.addEventListener("input", function(){
-      pushToApp(ta.value);
-      grow();
-    });
-
-    ta.addEventListener("keydown", function(e){
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        var evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
-        input.dispatchEvent(evt);
-        ta.value = "";
-        grow();
-        ta.focus();
+    function follow(){
+      var list = document.querySelector(".tc-chat-body-scroll");
+      if (list && document.activeElement === box) {
+        var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+        if (atBottom) list.scrollTop = list.scrollHeight;
       }
+    }
+
+    box.addEventListener("input", function(){
+      pushToApp(box.innerText.replace(/\n$/, ""));
+      follow();
     });
 
-    // when the app clears the field after sending, clear ours too
-    // Mirror the app's own field, focused or not. When it empties after a send,
-    // ours empties with it.
+    // paste as plain text, never as formatted markup
+    box.addEventListener("paste", function(e){
+      e.preventDefault();
+      var txt = (e.clipboardData || window.clipboardData).getData("text");
+      document.execCommand("insertText", false, txt);
+    });
+
+    function send(){
+      var evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
+      input.dispatchEvent(evt);
+      box.innerHTML = "";
+      pushToApp("");
+      box.focus();
+    }
+
+    box.addEventListener("keydown", function(e){
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+
+    // mirror the app's field, so sending by button also clears ours
     var lastSeen = input.value;
     setInterval(function(){
-      if (input.value === lastSeen) return;   // nothing changed on the app's side
+      if (input.value === lastSeen) return;
       lastSeen = input.value;
-      if (input.value !== ta.value) {
-        ta.value = input.value;
-        grow();
+      if (input.value !== box.innerText) {
+        box.innerText = input.value;
+        if (!input.value) box.innerHTML = "";
       }
     }, 120);
 
-    // hide the original but keep it in the tree so the app keeps working
-    input.style.position = "absolute";
-    input.style.opacity = "0";
-    input.style.pointerEvents = "none";
-    input.style.width = "1px";
-    input.style.height = "1px";
+    // hide the original but keep it working underneath
+    input.style.cssText = "position:absolute;opacity:0;pointer-events:none;width:1px;height:1px";
     input.setAttribute("aria-hidden", "true");
     input.removeAttribute("data-chatinput");
+    input.__tcBox = box;
 
-    input.parentNode.insertBefore(ta, input);
-    grow();
+    input.parentNode.insertBefore(box, input);
 
-    // The send button doesn't go through the Enter handler — clear on tap as well.
-    var bar = ta.closest(".tc-chat-inputbar");
+    var bar = box.closest(".tc-chat-inputbar");
     if (bar) {
-      var send = bar.querySelector(".tc-chat-send");
-      if (send && !send.__tcHooked) {
-        send.__tcHooked = true;
-        send.addEventListener("click", function(){
-          setTimeout(function(){ ta.value = ""; grow(); ta.focus(); }, 20);
+      var btn = bar.querySelector(".tc-chat-send");
+      if (btn && !btn.__tcHooked2) {
+        btn.__tcHooked2 = true;
+        btn.addEventListener("click", function(){
+          setTimeout(function(){ box.innerHTML = ""; pushToApp(""); box.focus(); }, 20);
         });
       }
     }
@@ -2442,33 +2438,25 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   });
   function start(){
     if (!document.body) return setTimeout(start, 50);
-    mo.observe(document.body, { childList: true, subtree: true });
+    mo.observe(document.body, { childList:true, subtree:true });
     convert();
   }
   window.addEventListener("load", start);
 })();
 </script>
 <style>
-/* the field is now a textarea — let it breathe */
-.tc-root textarea.tc-chat-text-input {
+#tc-editbox {
   border-radius: 20px !important;
   padding: 11px 16px !important;
   min-height: 42px;
+  display: flex;
+  align-items: center;
+  flex: 1;
 }
-.tc-root .tc-bubble,
-.tc-root .tc-bubble span,
-.tc-root textarea.tc-chat-text-input,
-.tc-root .tc-chat-text-input {
-  text-transform: none !important;
-  font-variant-caps: normal !important;
-}
-/* Message text stays in a face that has lowercase letters, whatever display
-   font is chosen elsewhere — a caps-only face makes a conversation shout. */
-.tc-root .tc-bubble,
-.tc-root .tc-bubble span,
-.tc-root .tc-chat-text-input,
-.tc-root textarea.tc-chat-text-input {
-  font-family: -apple-system, "SF Pro Text", "Segoe UI", "Helvetica Neue", sans-serif !important;
+#tc-editbox:empty::before {
+  content: attr(data-ph);
+  color: var(--ink-faint, #A99BC8);
+  pointer-events: none;
 }
 </style>
 <script>
@@ -2477,17 +2465,12 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
   var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
   var H = { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": "application/json" };
-
-  var T = {
-    fr: { replying:"Réponse à", cancel:"Annuler", you:"Vous" },
-    tr: { replying:"Yanıt", cancel:"İptal", you:"Sen" }
-  };
+  var T = { fr:{ cancel:"Annuler", you:"Vous" }, tr:{ cancel:"İptal", you:"Sen" } };
   function L(){ return T[(window.__tcLang === "tr") ? "tr" : "fr"]; }
   function me(){ try { return localStorage.getItem("tc_account_id"); } catch(e){ return null; } }
 
-  var pending = null;          // { id, text, sender }
+  var pending = null;
 
-  /* ---------- the strip above the keyboard ---------- */
   function showComposer(){
     var bar = document.querySelector(".tc-chat-inputbar");
     if (!bar) return;
@@ -2501,30 +2484,22 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       "display:flex;align-items:center;gap:10px;margin:0 -20px;padding:9px 20px;" +
       "background:rgba(169,124,236,.12);border-top:1px solid rgba(255,255,255,.07);" +
       "animation:tcReplyIn 160ms ease";
-
-    var barline = document.createElement("div");
-    barline.style.cssText = "width:3px;align-self:stretch;border-radius:3px;background:#A97CEC;flex:none";
-
+    var line = document.createElement("div");
+    line.style.cssText = "width:3px;align-self:stretch;border-radius:3px;background:#A97CEC;flex:none";
     var col = document.createElement("div");
     col.style.cssText = "flex:1;min-width:0";
     var who = document.createElement("div");
     who.style.cssText = "font-size:11.5px;font-weight:700;color:#C4A4FF;margin-bottom:1px";
     who.textContent = pending.senderName;
     var tx = document.createElement("div");
-    tx.style.cssText =
-      "font-size:12.5px;color:#CFC2E8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+    tx.style.cssText = "font-size:12.5px;color:#CFC2E8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
     tx.textContent = pending.text;
     col.appendChild(who); col.appendChild(tx);
-
     var x = document.createElement("button");
     x.textContent = "\u2715";
-    x.setAttribute("aria-label", L().cancel);
-    x.style.cssText =
-      "flex:none;width:28px;height:28px;border-radius:50%;border:none;" +
-      "background:rgba(255,255,255,.1);color:#CFC2E8;font-size:12px";
+    x.style.cssText = "flex:none;width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,.1);color:#CFC2E8;font-size:12px";
     x.onclick = function(){ pending = null; showComposer(); };
-
-    strip.appendChild(barline); strip.appendChild(col); strip.appendChild(x);
+    strip.appendChild(line); strip.appendChild(col); strip.appendChild(x);
     bar.parentNode.insertBefore(strip, bar);
   }
 
@@ -2534,108 +2509,83 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var bubble = row.querySelector(".tc-bubble");
     if (!bubble) return;
     var clone = bubble.cloneNode(true);
-    var q = clone.querySelector(".tc-quote");
-    if (q) q.remove();
-    var seen = clone.querySelector(".tc-seen");
-    if (seen) seen.remove();
-    var time = clone.querySelector(".tc-bubble-time");
-    if (time) time.remove();
+    ["\u002Etc-quote", ".tc-seen", ".tc-bubble-time"].forEach(function(sel){
+      var el = clone.querySelector(sel.replace("\u002E", "."));
+      if (el) el.remove();
+    });
     var text = (clone.textContent || "").trim();
-    if (!text) {
-      text = row.querySelector("img") ? "\uD83D\uDCF7" :
-             row.querySelector("audio") ? "\uD83C\uDF99\uFE0F" : "";
-    }
+    if (!text) text = row.querySelector("img") ? "\uD83D\uDCF7" : (row.querySelector("audio") ? "\uD83C\uDF99\uFE0F" : "");
     var mine = row.classList.contains("me");
-    pending = {
-      id: id,
-      text: text.slice(0, 120),
-      mine: mine,
-      senderName: mine ? L().you : (document.querySelector(".tc-chat-title") || {}).textContent || ""
-    };
+    pending = { id:id, text:text.slice(0,120), mine:mine,
+      senderName: mine ? L().you : ((document.querySelector(".tc-chat-title")||{}).textContent || "") };
     showComposer();
-    var field = document.querySelector('textarea[data-chatinput="1"], input[data-chatinput="1"]');
-    if (field) field.focus();
+    var f = document.getElementById("tc-editbox");
+    if (f) f.focus();
     if (navigator.vibrate) navigator.vibrate(8);
   }
 
-  /* ---------- gestures: swipe sideways, or press and hold ---------- */
   function hook(row){
     if (row.__tcReply) return;
     row.__tcReply = true;
-
-    var x0 = 0, y0 = 0, dragging = false, held = null;
-
+    var x0=0,y0=0,dragging=false,held=null;
     row.addEventListener("touchstart", function(e){
-      var t = e.touches[0];
-      x0 = t.clientX; y0 = t.clientY; dragging = false;
-      held = setTimeout(function(){ startReply(row); held = null; }, 480);
-    }, { passive: true });
-
+      var t=e.touches[0]; x0=t.clientX; y0=t.clientY; dragging=false;
+      held=setTimeout(function(){ startReply(row); held=null; }, 480);
+    }, {passive:true});
     row.addEventListener("touchmove", function(e){
-      var t = e.touches[0];
-      var dx = t.clientX - x0, dy = t.clientY - y0;
-      if (Math.abs(dy) > 12 && !dragging) { clearTimeout(held); held = null; return; }
-      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
-        clearTimeout(held); held = null;
-        dragging = true;
-        var shift = Math.max(-70, Math.min(70, dx));
-        row.style.transform = "translateX(" + shift * 0.5 + "px)";
-        row.style.transition = "none";
+      var t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+      if (Math.abs(dy)>12 && !dragging){ clearTimeout(held); held=null; return; }
+      if (Math.abs(dx)>10 && Math.abs(dx)>Math.abs(dy)){
+        clearTimeout(held); held=null; dragging=true;
+        row.style.transition="none";
+        row.style.transform="translateX("+Math.max(-70,Math.min(70,dx))*0.5+"px)";
       }
-    }, { passive: true });
-
+    }, {passive:true});
     function release(e){
-      clearTimeout(held); held = null;
-      var dx = 0;
-      if (e.changedTouches && e.changedTouches[0]) dx = e.changedTouches[0].clientX - x0;
-      row.style.transition = "transform 180ms cubic-bezier(.2,.9,.3,1)";
-      row.style.transform = "";
-      if (dragging && Math.abs(dx) > 45) startReply(row);
-      dragging = false;
+      clearTimeout(held); held=null;
+      var dx=0;
+      if (e.changedTouches && e.changedTouches[0]) dx=e.changedTouches[0].clientX-x0;
+      row.style.transition="transform 180ms cubic-bezier(.2,.9,.3,1)";
+      row.style.transform="";
+      if (dragging && Math.abs(dx)>45) startReply(row);
+      dragging=false;
     }
-    row.addEventListener("touchend", release, { passive: true });
-    row.addEventListener("touchcancel", release, { passive: true });
-
-    // desktop / trackpad
+    row.addEventListener("touchend", release, {passive:true});
+    row.addEventListener("touchcancel", release, {passive:true});
     row.addEventListener("dblclick", function(){ startReply(row); });
   }
 
-  /* ---------- tapping a quote jumps to the original ---------- */
-  document.addEventListener("click", function(e){
+  function jumpToQuoted(e){
     var q = e.target.closest && e.target.closest(".tc-quote");
     if (!q) return;
+    e.stopPropagation();
     var qid = q.getAttribute("data-qid");
     if (!qid) return;
     var target = document.querySelector('.tc-bubble-row[data-mid="' + qid + '"]');
     if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.scrollIntoView({ behavior:"smooth", block:"center" });
     var b = target.querySelector(".tc-bubble");
-    if (b) {
-      b.style.transition = "box-shadow 200ms ease";
-      b.style.boxShadow = "0 0 0 2px #A97CEC";
-      setTimeout(function(){ b.style.boxShadow = ""; }, 1100);
+    if (b){
+      b.style.transition="box-shadow 220ms ease";
+      b.style.boxShadow="0 0 0 2px #A97CEC, 0 0 18px rgba(169,124,236,.55)";
+      setTimeout(function(){ b.style.boxShadow=""; }, 1400);
     }
-  }, true);
+    if (navigator.vibrate) navigator.vibrate(6);
+  }
+  document.addEventListener("click", jumpToQuoted, true);
+  document.addEventListener("touchend", jumpToQuoted, true);
 
-  /* ---------- attach the reply to the next message sent ---------- */
-  /* draw the quote immediately on my newest bubble, so there's no visible delay */
   function paintQuoteNow(ref){
     var rows = document.querySelectorAll(".tc-bubble-row.me");
-    var row = rows[rows.length - 1];
+    var row = rows[rows.length-1];
     if (!row) return;
     var bubble = row.querySelector(".tc-bubble");
     if (!bubble || bubble.querySelector(".tc-quote")) return;
-
-    var q = document.createElement("div");
-    q.className = "tc-quote";
-    q.setAttribute("data-qid", ref.id);
-    var who = document.createElement("span");
-    who.className = "tc-quote-who";
-    who.textContent = ref.senderName;
-    var tx = document.createElement("span");
-    tx.className = "tc-quote-txt";
-    tx.textContent = ref.text;
-    q.appendChild(who); q.appendChild(tx);
+    var q=document.createElement("div");
+    q.className="tc-quote"; q.setAttribute("data-qid", ref.id);
+    var w=document.createElement("span"); w.className="tc-quote-who"; w.textContent=ref.senderName;
+    var t=document.createElement("span"); t.className="tc-quote-txt"; t.textContent=ref.text;
+    q.appendChild(w); q.appendChild(t);
     bubble.insertBefore(q, bubble.firstChild);
   }
 
@@ -2646,63 +2596,89 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var ref = pending;
     pending = null;
     showComposer();
-    // show it at once; the database write follows
-    for (var d = 0; d <= 700; d += 120) setTimeout(function(){ paintQuoteNow(ref); }, d);
+    for (var d=0; d<=700; d+=120) setTimeout(function(){ paintQuoteNow(ref); }, d);
     try {
-      // the message we just sent is our newest one
-      var r = await fetch(
-        SB_URL + "/rest/v1/messages?sender_id=eq." + id +
-        "&select=id,reply_to&order=created_at.desc&limit=1", { headers: H });
+      var r = await fetch(SB_URL+"/rest/v1/messages?sender_id=eq."+id+"&select=id,reply_to&order=created_at.desc&limit=1",{headers:H});
       var rows = await r.json();
-      if (!Array.isArray(rows) || !rows[0] || rows[0].reply_to) return;
-      await fetch(SB_URL + "/rest/v1/messages?id=eq." + rows[0].id, {
-        method: "PATCH",
-        headers: Object.assign({}, H, { Prefer: "return=minimal" }),
-        body: JSON.stringify({
-          reply_to: ref.id,
-          reply_preview: ref.text,
-          reply_sender: ref.mine ? id : null
-        })
+      if (!Array.isArray(rows)||!rows[0]||rows[0].reply_to) return;
+      await fetch(SB_URL+"/rest/v1/messages?id=eq."+rows[0].id,{
+        method:"PATCH",
+        headers:Object.assign({},H,{Prefer:"return=minimal"}),
+        body:JSON.stringify({ reply_to:ref.id, reply_preview:ref.text, reply_sender:ref.mine?id:null })
       });
     } catch(e){}
   }
 
   function watchSend(){
-    var bar = document.querySelector(".tc-chat-inputbar");
-    if (!bar || bar.__tcReplyHook) return;
-    bar.__tcReplyHook = true;
-    var send = bar.querySelector(".tc-chat-send");
-    if (send) send.addEventListener("click", function(){ setTimeout(tagLastMessage, 120); });
-    var field = bar.querySelector('textarea[data-chatinput="1"], input[data-chatinput="1"]');
-    if (field) field.addEventListener("keydown", function(e){
-      if (e.key === "Enter" && !e.shiftKey) setTimeout(tagLastMessage, 120);
+    var bar=document.querySelector(".tc-chat-inputbar");
+    if (!bar||bar.__tcReplyHook) return;
+    bar.__tcReplyHook=true;
+    var send=bar.querySelector(".tc-chat-send");
+    if (send) send.addEventListener("click", function(){ setTimeout(tagLastMessage,120); });
+    var box=document.getElementById("tc-editbox");
+    if (box) box.addEventListener("keydown", function(e){
+      if (e.key==="Enter" && !e.shiftKey) setTimeout(tagLastMessage,120);
     });
   }
 
-  var style = document.createElement("style");
+  var style=document.createElement("style");
   style.textContent =
     "@keyframes tcReplyIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}" +
-    ".tc-quote{display:block;border-inline-start:3px solid rgba(255,255,255,.45);" +
-    "padding:5px 9px;margin-bottom:6px;border-radius:7px;background:rgba(0,0,0,.16);" +
-    "cursor:pointer;max-width:100%}" +
+    ".tc-quote{display:block;border-inline-start:3px solid rgba(255,255,255,.45);padding:5px 9px;" +
+    "margin-bottom:6px;border-radius:7px;background:rgba(0,0,0,.16);cursor:pointer;max-width:100%;" +
+    "transition:background .15s ease, transform .15s ease}" +
+    ".tc-quote:active{background:rgba(0,0,0,.3);transform:scale(.985)}" +
     ".tc-quote-who{display:block;font-size:11px;font-weight:700;opacity:.85;margin-bottom:1px}" +
-    ".tc-quote-txt{display:block;font-size:12px;opacity:.75;white-space:nowrap;" +
-    "overflow:hidden;text-overflow:ellipsis}" +
+    ".tc-quote-txt{display:block;font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
     ".tc-bubble-row{touch-action:pan-y}";
   document.head.appendChild(style);
 
-  var mo = new MutationObserver(function(){
+  var mo=new MutationObserver(function(){
     if (mo._t) clearTimeout(mo._t);
-    mo._t = setTimeout(function(){
+    mo._t=setTimeout(function(){
       document.querySelectorAll(".tc-bubble-row").forEach(hook);
       watchSend();
     }, 80);
   });
   function start(){
-    if (!document.body) return setTimeout(start, 50);
-    mo.observe(document.body, { childList:true, subtree:true });
+    if (!document.body) return setTimeout(start,50);
+    mo.observe(document.body,{childList:true,subtree:true});
     document.querySelectorAll(".tc-bubble-row").forEach(hook);
     watchSend();
+  }
+  window.addEventListener("load", start);
+})();
+</script>
+<script>
+/* ── Hold the reader's place instead of snapping to the newest message ── */
+(function(){
+  function attach(list){
+    if (list.__tcHold) return;
+    list.__tcHold = true;
+    var atBottom = true, lastTop = list.scrollTop;
+    list.addEventListener("scroll", function(){
+      atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+    }, { passive:true });
+    var guard = setInterval(function(){
+      if (!document.body.contains(list)) { clearInterval(guard); return; }
+      if (atBottom) { lastTop = list.scrollTop; return; }
+      var jumped = list.scrollTop - lastTop;
+      if (jumped > 40 && list.scrollHeight - list.scrollTop - list.clientHeight < 60) {
+        list.scrollTop = lastTop;
+      } else {
+        lastTop = list.scrollTop;
+      }
+    }, 120);
+  }
+  var mo = new MutationObserver(function(){
+    var l = document.querySelector(".tc-chat-body-scroll");
+    if (l) attach(l);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 60);
+    mo.observe(document.body, { childList:true, subtree:true });
+    var l = document.querySelector(".tc-chat-body-scroll");
+    if (l) attach(l);
   }
   window.addEventListener("load", start);
 })();
