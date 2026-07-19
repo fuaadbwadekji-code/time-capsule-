@@ -2351,8 +2351,11 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     box.setAttribute("aria-label", input.placeholder || "");
     box.setAttribute("data-ph", input.placeholder || "");
     box.setAttribute("autocapitalize", "sentences");
-    box.setAttribute("autocorrect", "on");
-    box.setAttribute("spellcheck", "true");
+    box.setAttribute("autocorrect", "off");
+    box.setAttribute("spellcheck", "false");
+    box.setAttribute("autocomplete", "off");
+    box.setAttribute("data-lpignore", "true");
+    box.setAttribute("inputmode", "text");
     box.setAttribute("enterkeyhint", "send");
     box.id = "tc-editbox";
     box.style.cssText =
@@ -2447,6 +2450,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     box.addEventListener("blur", function(){ setTimeout(restore, 120); });
 
     input.parentNode.insertBefore(box, input);
+
+    // A surrounding <form> is one of the things that makes iOS show its assistant bar.
+    var f = box.closest("form");
+    if (f) {
+      // neutralise it without moving anything in the tree
+      f.setAttribute("onsubmit", "return false");
+      f.setAttribute("novalidate", "novalidate");
+    }
 
     var bar = box.closest(".tc-chat-inputbar");
     if (bar) {
@@ -2543,6 +2554,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     });
     var text = (clone.textContent || "").trim();
     if (!text) text = row.querySelector("img") ? "\uD83D\uDCF7" : (row.querySelector("audio") ? "\uD83C\uDF99\uFE0F" : "");
+    // the bubble shows my language; keep the id so the reader's own copy can be used
     var mine = row.classList.contains("me");
     pending = { id:id, text:text.slice(0,120), mine:mine,
       senderName: mine ? L().you : ((document.querySelector(".tc-chat-title")||{}).textContent || "") };
@@ -2751,5 +2763,57 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   window.addEventListener("load", start);
 })();
 </script>
+<script>
+/* ── Quotes read in the reader's own language, in normal case ─────────
+   A quote is stored as the text the sender saw. Each person should instead
+   see the version they'd read in the thread, so we look the original message
+   up on screen and use its own text.                                      */
+(function(){
+  function fixQuotes(){
+    document.querySelectorAll(".tc-quote[data-qid]").forEach(function(q){
+      var qid = q.getAttribute("data-qid");
+      if (!qid || q.__tcFixed) return;
+      var src = document.querySelector('.tc-bubble-row[data-mid="' + qid + '"] .tc-bubble');
+      if (!src) return;                      // original not on screen — leave as is
+
+      var clone = src.cloneNode(true);
+      [".tc-quote", ".tc-seen", ".tc-bubble-time"].forEach(function(sel){
+        var el = clone.querySelector(sel);
+        if (el) el.remove();
+      });
+      var mine = (src.textContent || "").trim();
+      if (!mine) return;
+
+      var txt = q.querySelector(".tc-quote-txt");
+      if (txt && txt.textContent.trim() !== clone.textContent.trim()) {
+        txt.textContent = clone.textContent.trim().slice(0, 120);
+      }
+      q.__tcFixed = true;
+    });
+  }
+
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(fixQuotes, 120);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 60);
+    mo.observe(document.body, { childList:true, subtree:true });
+    fixQuotes();
+  }
+  window.addEventListener("load", start);
+})();
+</script>
+<style>
+/* the quote is part of a conversation — never a display face, never shouting */
+.tc-root .tc-quote,
+.tc-root .tc-quote-who,
+.tc-root .tc-quote-txt,
+.tc-root #tc-editbox {
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", "Helvetica Neue", sans-serif !important;
+  text-transform: none !important;
+  font-variant-caps: normal !important;
+}
+</style>
 </body>
 </html>
