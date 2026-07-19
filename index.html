@@ -1784,8 +1784,9 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   var style = document.createElement("style");
   style.textContent =
     "@keyframes tcToastIn{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}" +
-    ".tc-seen{margin-inline-end:5px;opacity:.55;font-size:.95em;letter-spacing:-1px}" +
-    ".tc-seen.read{opacity:1;color:#7FD1FF}";
+    ".tc-seen{display:inline-block;margin-inline-end:6px;font-size:1.15em;line-height:1;" +
+    "letter-spacing:-2px;font-weight:700;opacity:.6;color:#DCD2F0;transition:color .18s ease,opacity .18s ease}" +
+    ".tc-seen.read{opacity:1;color:#5BC8FF;text-shadow:0 0 8px rgba(91,200,255,.45)}";
   document.head.appendChild(style);
 
   function tick(){
@@ -1859,7 +1860,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   async function markRead(){
     var id = me();
     if (!id || !chatOpen() || document.hidden) return;
-    if (Date.now() - lastMark < 1200) return;
+    if (Date.now() - lastMark < 400) return;
     lastMark = Date.now();
     try {
       await fetch(SB_URL + "/rest/v1/messages?recipient_id=eq." + id + "&read_at=is.null", {
@@ -1898,11 +1899,33 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     pollTyping();
     markRead();
   }
+  var fast = null, slow = null;
+  function pace(){
+    var active = chatOpen() && !document.hidden;
+    if (active && !fast) {
+      clearInterval(slow); slow = null;
+      fast = setInterval(loop, 700);
+    } else if (!active && !fast) {
+      // nothing to do — the slow timer below covers it
+    }
+    if (!active && fast) { clearInterval(fast); fast = null; }
+    if (!active && !slow) slow = setInterval(loop, 6000);
+    if (active && slow) { clearInterval(slow); slow = null; }
+  }
   window.addEventListener("load", function(){
-    setTimeout(loop, 1200);
-    setInterval(loop, 1800);          // brisk enough to feel live
+    setTimeout(loop, 900);
+    pace();
+    setInterval(pace, 1000);
   });
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) loop(); });
+
+  // The moment the conversation opens, clear the unread state immediately.
+  var wasOpen = false;
+  setInterval(function(){
+    var now = chatOpen();
+    if (now && !wasOpen) { lastMark = 0; markRead(); }
+    wasOpen = now;
+  }, 300);
 })();
 </script>
 <script>
@@ -1942,11 +1965,316 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     } catch(e){}
   }
 
+  // Poll briskly while the conversation is on screen, and back right off otherwise
+  // so we aren't hammering the network in the background.
+  var fastTimer = null, slowTimer = null;
+  function setPace(){
+    var active = chatOpen() && !document.hidden;
+    if (active && !fastTimer) {
+      clearInterval(slowTimer); slowTimer = null;
+      fastTimer = setInterval(refreshTicks, 600);
+    } else if (!active && !slowTimer) {
+      clearInterval(fastTimer); fastTimer = null;
+      slowTimer = setInterval(refreshTicks, 6000);
+    }
+  }
   window.addEventListener("load", function(){
-    setTimeout(refreshTicks, 1500);
-    setInterval(refreshTicks, 2000);
+    setTimeout(refreshTicks, 800);
+    setPace();
+    setInterval(setPace, 1000);
   });
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshTicks(); });
+})();
+</script>
+<script>
+/* ── Activity feed: what the other one did, plus capsules about to open ──
+   Everything is worked out on the device by comparing snapshots, so it needs
+   no extra tables and each person keeps their own list.                     */
+(function(){
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+  var H = { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY };
+
+  var T = {
+    fr: {
+      title:"Activité", empty:"Rien de nouveau pour l'instant.",
+      photo:function(n){ return n + " a changé sa photo"; },
+      capsule:function(n){ return n + " a écrit une capsule"; },
+      soon:function(t){ return "Une capsule s'ouvre dans " + t + " min"; },
+      opened:function(n){ return n + " a ouvert ta capsule"; },
+      hero:function(n){ return n + " a changé l'image d'accueil"; },
+      clear:"Tout effacer", ago:{ now:"à l'instant", m:"il y a %d min", h:"il y a %d h", d:"il y a %d j" }
+    },
+    tr: {
+      title:"Etkinlik", empty:"Şimdilik yeni bir şey yok.",
+      photo:function(n){ return n + " fotoğrafını değiştirdi"; },
+      capsule:function(n){ return n + " bir kapsül yazdı"; },
+      soon:function(t){ return "Bir kapsül " + t + " dk içinde açılıyor"; },
+      opened:function(n){ return n + " kapsülünü açtı"; },
+      hero:function(n){ return n + " ana sayfa görselini değiştirdi"; },
+      clear:"Tümünü temizle", ago:{ now:"az önce", m:"%d dk önce", h:"%d sa önce", d:"%d g önce" }
+    }
+  };
+  function L(){ return T[(window.__tcLang === "tr") ? "tr" : "fr"]; }
+  function me(){ try { return localStorage.getItem("tc_account_id"); } catch(e){ return null; } }
+
+  /* ---------- local store, one list per account ---------- */
+  function key(k){ return "tc_act_" + k + "_" + (me() || "x"); }
+  function load(k, d){ try { return JSON.parse(localStorage.getItem(key(k)) || JSON.stringify(d)); } catch(e){ return d; } }
+  function save(k, v){ try { localStorage.setItem(key(k), JSON.stringify(v)); } catch(e){} }
+
+  function items(){ return load("items", []); }
+  function push(item){
+    var list = items();
+    if (list.some(function(x){ return x.uid === item.uid; })) return false;
+    list.unshift(item);
+    save("items", list.slice(0, 60));
+    return true;
+  }
+  function unread(){ return items().filter(function(x){ return !x.seen; }).length; }
+  function markAllSeen(){
+    save("items", items().map(function(x){ x.seen = true; return x; }));
+    paintBadge();
+  }
+
+  function timeAgo(iso){
+    var a = L().ago, ms = Date.now() - new Date(iso).getTime();
+    var m = Math.floor(ms / 60000);
+    if (m < 1) return a.now;
+    if (m < 60) return a.m.replace("%d", m);
+    var h = Math.floor(m / 60);
+    if (h < 24) return a.h.replace("%d", h);
+    return a.d.replace("%d", Math.floor(h / 24));
+  }
+
+  /* ---------- watch for things worth reporting ---------- */
+  var partner = null;
+
+  async function getPartner(){
+    var id = me();
+    if (!id) return null;
+    try {
+      var r = await fetch(SB_URL + "/rest/v1/accounts?id=neq." + id + "&select=id,name,avatar_url&limit=1", { headers: H });
+      var rows = await r.json();
+      if (Array.isArray(rows) && rows[0]) partner = rows[0];
+    } catch(e){}
+    return partner;
+  }
+
+  function notifyDevice(text){
+    try {
+      if (window.Notification && Notification.permission === "granted") {
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then(function(reg){
+            reg.showNotification("Time Capsule", { body: text, tag: "tc-activity", icon: "icon-192.png" });
+          });
+        } else {
+          new Notification("Time Capsule", { body: text });
+        }
+      }
+    } catch(e){}
+  }
+
+  async function scan(){
+    var id = me();
+    if (!id) return;
+    var p = await getPartner();
+    var t = L();
+    var fresh = false;
+    var firstRun = items().length === 0 && !load("seeded", false);
+
+    /* their photo */
+    if (p) {
+      var prev = load("avatar", null);
+      if (prev && p.avatar_url && prev !== p.avatar_url) {
+        if (push({ uid:"avatar-" + p.avatar_url.slice(-24), icon:"\uD83D\uDDBC\uFE0F",
+                   text:t.photo(p.name || ""), at:new Date().toISOString() })) {
+          fresh = true; notifyDevice(t.photo(p.name || ""));
+        }
+      }
+      save("avatar", p.avatar_url || "");
+    }
+
+    /* the shared home image */
+    try {
+      var g = await (await fetch(SB_URL + "/rest/v1/global_settings?id=eq.1&select=hero_image_url", { headers: H })).json();
+      var hero = Array.isArray(g) && g[0] ? (g[0].hero_image_url || "") : "";
+      var prevHero = load("hero", null);
+      if (prevHero && hero && prevHero !== hero) {
+        if (push({ uid:"hero-" + hero.slice(-24), icon:"\uD83C\uDF04",
+                   text:t.hero(p && p.name ? p.name : ""), at:new Date().toISOString() })) fresh = true;
+      }
+      save("hero", hero);
+    } catch(e){}
+
+    /* capsules they wrote, capsules of mine they opened, capsules about to open */
+    try {
+      var caps = await (await fetch(
+        SB_URL + "/rest/v1/capsules?select=id,title,created_by,open_at,is_opened,opened_at,created_at" +
+        "&order=created_at.desc&limit=40", { headers: H })).json();
+      if (Array.isArray(caps)) {
+        caps.forEach(function(c){
+          // they wrote one
+          if (c.created_by && c.created_by !== id) {
+            if (push({ uid:"new-" + c.id, icon:"\uD83D\uDCE6",
+                       text:t.capsule(p && p.name ? p.name : ""), at:c.created_at || new Date().toISOString() })
+                && !firstRun) { fresh = true; notifyDevice(t.capsule(p && p.name ? p.name : "")); }
+          }
+          // they opened mine
+          if (c.created_by === id && c.is_opened && c.opened_at) {
+            if (push({ uid:"opened-" + c.id, icon:"\uD83D\uDC8C",
+                       text:t.opened(p && p.name ? p.name : ""), at:c.opened_at })
+                && !firstRun) fresh = true;
+          }
+          // opening within the next five minutes
+          if (!c.is_opened && c.open_at) {
+            var mins = (new Date(c.open_at).getTime() - Date.now()) / 60000;
+            if (mins > 0 && mins <= 5) {
+              if (push({ uid:"soon-" + c.id, icon:"\u23F3",
+                         text:t.soon(Math.max(1, Math.round(mins))), at:new Date().toISOString() })) {
+                fresh = true; notifyDevice(t.soon(Math.max(1, Math.round(mins))));
+              }
+            }
+          }
+        });
+      }
+    } catch(e){}
+
+    if (firstRun) { markAllSeen(); save("seeded", true); }
+    paintBadge();
+    if (fresh && document.getElementById("tc-act-panel")) renderPanel();
+  }
+
+  /* ---------- the bell and its panel ---------- */
+  function paintBadge(){
+    var b = document.getElementById("tc-act-badge");
+    if (!b) return;
+    var n = unread();
+    b.style.display = n ? "flex" : "none";
+    b.textContent = n > 9 ? "9+" : String(n);
+  }
+
+  function renderPanel(){
+    var panel = document.getElementById("tc-act-list");
+    if (!panel) return;
+    var t = L(), list = items();
+    panel.innerHTML = "";
+    if (!list.length) {
+      var e = document.createElement("div");
+      e.style.cssText = "padding:28px 10px;text-align:center;color:#A99BC8;font-size:13px";
+      e.textContent = t.empty;
+      panel.appendChild(e);
+      return;
+    }
+    list.forEach(function(it){
+      var row = document.createElement("div");
+      row.style.cssText =
+        "display:flex;gap:12px;align-items:flex-start;padding:13px 4px;" +
+        "border-bottom:1px solid rgba(255,255,255,.07)";
+      var ic = document.createElement("div");
+      ic.style.cssText = "font-size:19px;line-height:1.2;flex:none;width:26px;text-align:center";
+      ic.textContent = it.icon;
+      var col = document.createElement("div");
+      col.style.cssText = "flex:1;min-width:0";
+      var tx = document.createElement("div");
+      tx.style.cssText = "font-size:13.5px;line-height:1.45;color:#F4EEFF";
+      tx.textContent = it.text;
+      var ago = document.createElement("div");
+      ago.style.cssText = "font-size:11px;color:#A99BC8;margin-top:3px";
+      ago.textContent = timeAgo(it.at);
+      col.appendChild(tx); col.appendChild(ago);
+      row.appendChild(ic); row.appendChild(col);
+      panel.appendChild(row);
+    });
+  }
+
+  function openPanel(){
+    if (document.getElementById("tc-act-panel")) return;
+    var t = L();
+
+    var back = document.createElement("div");
+    back.id = "tc-act-panel";
+    back.style.cssText =
+      "position:fixed;inset:0;z-index:600;background:rgba(8,4,18,.86);" +
+      "-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);display:flex;" +
+      "align-items:flex-end;justify-content:center;font-family:-apple-system,sans-serif";
+    back.onclick = function(e){ if (e.target === back) close(); };
+
+    var sheet = document.createElement("div");
+    sheet.style.cssText =
+      "width:100%;max-width:430px;box-sizing:border-box;color:#F4EEFF;" +
+      "background:linear-gradient(180deg,#2b1c4c,#1a1132);border:1px solid rgba(255,255,255,.14);" +
+      "border-radius:24px 24px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));" +
+      "max-height:76dvh;display:flex;flex-direction:column;" +
+      "animation:tcActIn 240ms cubic-bezier(.2,.9,.3,1.05)";
+
+    var head = document.createElement("div");
+    head.style.cssText = "display:flex;align-items:center;gap:10px;margin-bottom:6px";
+    var h = document.createElement("div");
+    h.style.cssText = "flex:1;font-size:16px;font-weight:700";
+    h.textContent = t.title;
+    var clear = document.createElement("button");
+    clear.textContent = t.clear;
+    clear.style.cssText = "background:none;border:none;color:#A99BC8;font-size:12px;padding:6px";
+    clear.onclick = function(){ save("items", []); renderPanel(); paintBadge(); };
+    head.appendChild(h); head.appendChild(clear);
+
+    var list = document.createElement("div");
+    list.id = "tc-act-list";
+    list.style.cssText = "flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain";
+
+    function close(){ back.remove(); }
+
+    sheet.appendChild(head); sheet.appendChild(list);
+    back.appendChild(sheet);
+    document.body.appendChild(back);
+    renderPanel();
+    markAllSeen();
+  }
+
+  function mountBell(){
+    if (document.getElementById("tc-act-bell")) return;
+    var nav = document.querySelector(".tc-bottom-nav");
+    if (!nav) return;
+
+    var wrap = document.createElement("button");
+    wrap.id = "tc-act-bell";
+    wrap.setAttribute("aria-label", "activity");
+    wrap.style.cssText =
+      "position:fixed;top:calc(env(safe-area-inset-top) + 10px);right:14px;z-index:120;" +
+      "width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);" +
+      "background:rgba(30,20,56,.9);color:#CFC2E8;font-size:17px;display:flex;" +
+      "align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.4)";
+    wrap.textContent = "\uD83D\uDD14";
+    wrap.onclick = openPanel;
+
+    var badge = document.createElement("span");
+    badge.id = "tc-act-badge";
+    badge.style.cssText =
+      "position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;" +
+      "border-radius:9px;background:#E0555A;color:#fff;font-size:10.5px;font-weight:700;" +
+      "display:none;align-items:center;justify-content:center;border:2px solid #1a1132";
+    wrap.appendChild(badge);
+
+    document.body.appendChild(wrap);
+    paintBadge();
+  }
+
+  var style = document.createElement("style");
+  style.textContent = "@keyframes tcActIn{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}";
+  document.head.appendChild(style);
+
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(mountBell, 60);
+  });
+  window.addEventListener("load", function(){
+    if (document.body) mo.observe(document.body, { childList:true, subtree:true });
+    setTimeout(mountBell, 900);
+    setTimeout(scan, 2600);
+    setInterval(scan, 45000);
+  });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) scan(); });
 })();
 </script>
 </body>
