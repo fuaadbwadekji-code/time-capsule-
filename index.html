@@ -437,13 +437,31 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 .tc-root .tc-bubble span,
 .tc-root .tc-quote-txt,
 .tc-root #tc-editbox {
-  font-size: 15px !important;
-  line-height: 1.45 !important;
+  font-size: 13.5px !important;
+  line-height: 1.42 !important;
 }
-.tc-root .tc-quote-who { font-size: 11.5px !important; }
-.tc-root .tc-bubble-time { font-size: 10px !important; }
-.tc-root .tc-chat-title { font-size: 16px !important; }
-.tc-root .tc-chat-sub { font-size: 11.5px !important; }
+.tc-root .tc-quote-who { font-size: 10.5px !important; }
+.tc-root .tc-bubble-time { font-size: 9.5px !important; }
+.tc-root .tc-chat-title { font-size: 15px !important; }
+.tc-root .tc-chat-sub { font-size: 11px !important; }
+.tc-root .tc-bubble { padding: 8px 12px !important; }
+
+/* Nothing inside a conversation may use a caps-only display face. Bebas Neue has no
+   lowercase letters at all, so a message set in it reads as shouting. */
+.tc-root .tc-chat-screen-wrap,
+.tc-root .tc-chat-screen-wrap *,
+.tc-root .tc-bubble,
+.tc-root .tc-bubble *,
+.tc-root .tc-quote,
+.tc-root .tc-quote *,
+.tc-root #tc-editbox,
+.tc-root #tc-reply-strip,
+.tc-root #tc-reply-strip * {
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
+  text-transform: none !important;
+  font-variant-caps: normal !important;
+  font-feature-settings: normal !important;
+}
 </style>
 </head>
 <body>
