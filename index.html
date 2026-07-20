@@ -1,6 +1,107 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
+<script>
+/* ── Give the scroll the whole frame ─────────────────────────────────
+   Eleven observers and eighteen timers were competing with the finger.
+   While a scroll is in flight, suspend all of them and resume just after. */
+(function(){
+  var scrolling = false, endTimer = null;
+
+  /* 1 · a single source of truth for "the user is scrolling" */
+  function begin(){
+    // ignore the tiny scroll a screen makes as it lays itself out
+    if (document.visibilityState !== "visible") return;
+    if (!scrolling) {
+      scrolling = true;
+      window.__tcScrolling = true;
+      document.documentElement.classList.add("tc-scrolling");
+    }
+    clearTimeout(endTimer);
+    endTimer = setTimeout(end, 180);
+  }
+  function end(){
+    scrolling = false;
+    window.__tcScrolling = false;
+    document.documentElement.classList.remove("tc-scrolling");
+    resumeAll();
+  }
+  document.addEventListener("scroll", begin, { passive:true, capture:true });
+  document.addEventListener("touchmove", begin, { passive:true, capture:true });
+
+  /* 2 · hold every observer and interval for the duration */
+  var heldObservers = [];
+  var NativeMO = window.MutationObserver;
+  var rafPending = false, rafQueue = [];
+  function flushRaf(){
+    rafPending = false;
+    var q = rafQueue; rafQueue = [];
+    for (var i = 0; i < q.length; i++) {
+      try { q[i](); } catch(e){}
+    }
+  }
+  function PatchedMO(cb){
+    var self = this;
+    var mo = new NativeMO(function(muts, obs){
+      if (window.__tcScrolling) {
+        clearTimeout(self._pending);
+        self._pending = setTimeout(function(){ cb(muts, obs); }, 200);
+        return;
+      }
+      // Every observer's callback lands on the SAME animation frame instead of each
+      // running its own pass the instant the DOM changes — eleven separate full-tree
+      // scans per keystroke was the real cost.
+      rafQueue.push(function(){ cb(muts, obs); });
+      if (!rafPending) { rafPending = true; requestAnimationFrame(flushRaf); }
+    });
+    this._mo = mo;
+    this.observe = function(){ self._args = arguments; return mo.observe.apply(mo, arguments); };
+    this.disconnect = function(){ return mo.disconnect(); };
+    this.takeRecords = function(){ return mo.takeRecords(); };
+    heldObservers.push(this);
+  }
+  window.MutationObserver = PatchedMO;
+
+  var NativeInterval = window.setInterval;
+  var timers = [];
+  window.setInterval = function(fn, ms){
+    var wrapped = function(){
+      if (window.__tcScrolling) return;      // skip a beat rather than stutter
+      return fn.apply(this, arguments);
+    };
+    var id = NativeInterval(wrapped, ms);
+    timers.push(id);
+    return id;
+  };
+
+  function resumeAll(){ /* nothing to undo — the guards simply stop skipping */ }
+})();
+</script>
+<style>
+/* Cheap frames while moving: no blur, no shadows, no transitions. */
+html.tc-scrolling .tc-bubble,
+html.tc-scrolling .tc-card,
+html.tc-scrolling .tc-quote { box-shadow: none !important; }
+html.tc-scrolling * {
+  transition: none !important;
+  animation-play-state: paused !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Let the thread scroll on its own layer. */
+.tc-chat-body-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+/* Each message is its own paint island, so one bubble never repaints the rest. */
+.tc-bubble-row { contain: content; }
+/* Images reserve their space so the thread doesn't jump as they load. */
+.tc-bubble img { content-visibility: auto; }
+</style>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Time Capsule</title>
@@ -447,6 +548,15 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   text-transform: none !important;
   font-variant-caps: normal !important;
   font-feature-settings: normal !important;
+}
+
+/* A new message settles in gently instead of just appearing. */
+@keyframes tcBubbleIn {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+.tc-root .tc-bubble-row {
+  animation: tcBubbleIn 220ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
 </style>
 </head>
@@ -1617,14 +1727,30 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       try {
         var image=new Image();
         await new Promise(function(res,rej){ image.onload=res; image.onerror=rej; image.src=url; });
-        var W=1200, H=750, cv=document.createElement('canvas');
+
+        // Keep the photo at its own resolution instead of forcing it down to a fixed
+        // small canvas. The crop box is 16:10 (matching the preview); size that box
+        // from the SOURCE image's own pixels, only capped so the file stays reasonable.
+        var STAGE_ASPECT = 16 / 10;
+        var MAX_SIDE = 2200;
+        var W, H;
+        if (image.width / image.height > STAGE_ASPECT) {
+          H = Math.min(image.height, MAX_SIDE);
+          W = H * STAGE_ASPECT;
+        } else {
+          W = Math.min(image.width, MAX_SIDE);
+          H = W / STAGE_ASPECT;
+        }
+        W = Math.round(W); H = Math.round(H);
+
+        var cv=document.createElement('canvas');
         cv.width=W; cv.height=H;
         var cx=cv.getContext('2d');
         var scale=Math.max(W/image.width, H/image.height)*st.zoom;
         var dw=image.width*scale, dh=image.height*scale;
         cx.fillStyle='#170f2b'; cx.fillRect(0,0,W,H);
         cx.drawImage(image, (W-dw)*(st.x/100), (H-dh)*(st.y/100), dw, dh);
-        var dataUrl=cv.toDataURL('image/jpeg', 0.88);
+        var dataUrl=cv.toDataURL('image/jpeg', 0.92);
         URL.revokeObjectURL(url);
         back.remove();
         onDone(dataUrl);
@@ -2588,7 +2714,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var x0=0,y0=0,dragging=false,held=null;
     row.addEventListener("touchstart", function(e){
       var t=e.touches[0]; x0=t.clientX; y0=t.clientY; dragging=false;
-      held=setTimeout(function(){ startReply(row); held=null; }, 480);
+      held=setTimeout(function(){ startReply(row); held=null; }, 320);
     }, {passive:true});
     row.addEventListener("touchmove", function(e){
       var t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
@@ -2994,94 +3120,226 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 })();
 </script>
 <script>
-/* ── Give the scroll the whole frame ─────────────────────────────────
-   Eleven observers and eighteen timers were competing with the finger.
-   While a scroll is in flight, suspend all of them and resume just after. */
+/* ── Tell the service worker whether the app is actually on screen ──── */
 (function(){
-  var scrolling = false, endTimer = null;
-
-  /* 1 · a single source of truth for "the user is scrolling" */
-  function begin(){
-    // ignore the tiny scroll a screen makes as it lays itself out
-    if (document.visibilityState !== "visible") return;
-    if (!scrolling) {
-      scrolling = true;
-      window.__tcScrolling = true;
-      document.documentElement.classList.add("tc-scrolling");
-    }
-    clearTimeout(endTimer);
-    endTimer = setTimeout(end, 180);
-  }
-  function end(){
-    scrolling = false;
-    window.__tcScrolling = false;
-    document.documentElement.classList.remove("tc-scrolling");
-    resumeAll();
-  }
-  document.addEventListener("scroll", begin, { passive:true, capture:true });
-  document.addEventListener("touchmove", begin, { passive:true, capture:true });
-
-  /* 2 · hold every observer and interval for the duration */
-  var heldObservers = [];
-  var NativeMO = window.MutationObserver;
-  function PatchedMO(cb){
-    var self = this;
-    var mo = new NativeMO(function(muts, obs){
-      if (window.__tcScrolling) {
-        // Don't drop the work — run it as soon as the finger lifts, otherwise a screen
-        // opened mid-gesture stays blank until the next mutation comes along.
-        clearTimeout(self._pending);
-        self._pending = setTimeout(function(){ cb(muts, obs); }, 200);
-        return;
-      }
-      cb(muts, obs);
+  function ping(){
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage({
+      type: "tc-visible",
+      visible: document.visibilityState === "visible" && !document.hidden
     });
-    this._mo = mo;
-    this.observe = function(){ self._args = arguments; return mo.observe.apply(mo, arguments); };
-    this.disconnect = function(){ return mo.disconnect(); };
-    this.takeRecords = function(){ return mo.takeRecords(); };
-    heldObservers.push(this);
   }
-  window.MutationObserver = PatchedMO;
-
-  var NativeInterval = window.setInterval;
-  var timers = [];
-  window.setInterval = function(fn, ms){
-    var wrapped = function(){
-      if (window.__tcScrolling) return;      // skip a beat rather than stutter
-      return fn.apply(this, arguments);
-    };
-    var id = NativeInterval(wrapped, ms);
-    timers.push(id);
-    return id;
-  };
-
-  function resumeAll(){ /* nothing to undo — the guards simply stop skipping */ }
+  document.addEventListener("visibilitychange", ping);
+  window.addEventListener("focus", ping);
+  window.addEventListener("blur", ping);
+  window.addEventListener("load", function(){
+    ping();
+    setInterval(ping, 8000);
+    navigator.serviceWorker && navigator.serviceWorker.ready.then(ping);
+  });
 })();
 </script>
-<style>
-/* Cheap frames while moving: no blur, no shadows, no transitions. */
-html.tc-scrolling .tc-bubble,
-html.tc-scrolling .tc-card,
-html.tc-scrolling .tc-quote { box-shadow: none !important; }
-html.tc-scrolling * {
-  transition: none !important;
-  animation-play-state: paused !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
+<script>
+/* ── Chat-only text size, with a live preview ─────────────────────────
+   Separate from the app-wide "text size" slider — this one only affects
+   the conversation, and is remembered per account.                     */
+(function(){
+  var T = {
+    fr: { title:"Taille du texte (messages)", preview:"Aperçu du message" },
+    tr: { title:"Yazı boyutu (mesajlar)", preview:"Mesaj önizlemesi" }
+  };
+  function L(){ return T[(window.__tcLang === "tr") ? "tr" : "fr"]; }
+  function acc(){ try { return localStorage.getItem("tc_account_id") || "x"; } catch(e){ return "x"; } }
+  function K(){ return "tc_chatfont_" + acc(); }
+  function current(){
+    try { var v = parseFloat(localStorage.getItem(K())); return isFinite(v) ? v : 1; }
+    catch(e){ return 1; }
+  }
 
-/* Let the thread scroll on its own layer. */
-.tc-chat-body-scroll {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  transform: translateZ(0);
-  will-change: scroll-position;
-}
-/* Each message is its own paint island, so one bubble never repaints the rest. */
-.tc-bubble-row { contain: content; }
-/* Images reserve their space so the thread doesn't jump as they load. */
-.tc-bubble img { content-visibility: auto; }
-</style>
+  var styleEl = document.createElement("style");
+  styleEl.id = "tc-chatfont-css";
+  document.head.appendChild(styleEl);
+
+  function apply(scale){
+    var base = 14.4; // the app's own 0.9em at a 16px root
+    styleEl.textContent =
+      ".tc-root .tc-bubble, .tc-root .tc-bubble span, .tc-root .tc-quote-txt, .tc-root #tc-editbox {" +
+      "  font-size:" + (base * scale).toFixed(1) + "px !important;" +
+      "}";
+    document.head.appendChild(styleEl);
+  }
+  window.tcApplyChatFont = function(){ apply(current()); };
+
+  function build(){
+    var t = L(), val = current();
+    var card = document.createElement("div");
+    card.className = "tc-settings-card";
+    card.id = "tc-chatfont-card";
+    card.style.cssText = "display:flex;flex-direction:column;gap:10px";
+
+    var head = document.createElement("div");
+    head.style.cssText = "display:flex;align-items:center;justify-content:space-between";
+    var title = document.createElement("div");
+    title.className = "tc-set-section-title";
+    title.style.margin = "0";
+    title.textContent = t.title;
+    var pct = document.createElement("span");
+    pct.style.cssText = "font-size:0.8em;color:#a78bd1";
+    pct.textContent = Math.round(val * 100) + "%";
+    head.appendChild(title); head.appendChild(pct);
+
+    var range = document.createElement("input");
+    range.type = "range"; range.min = "0.75"; range.max = "1.5"; range.step = "0.05";
+    range.value = String(val);
+    range.style.cssText = "width:100%";
+
+    var preview = document.createElement("div");
+    preview.style.cssText =
+      "align-self:flex-start;max-width:82%;background:#1F2C34;color:#E9EDEF;" +
+      "border-radius:8px;border-top-left-radius:2px;padding:10px 14px;line-height:1.45";
+    function paintPreview(){
+      preview.style.fontSize = (14.4 * parseFloat(range.value)).toFixed(1) + "px";
+      preview.textContent = t.preview;
+    }
+    paintPreview();
+
+    range.oninput = function(){
+      apply(parseFloat(range.value));
+      pct.textContent = Math.round(parseFloat(range.value) * 100) + "%";
+      paintPreview();
+    };
+    range.onchange = function(){
+      try { localStorage.setItem(K(), range.value); } catch(e){}
+    };
+
+    card.appendChild(head); card.appendChild(range); card.appendChild(preview);
+    return card;
+  }
+
+  function place(){
+    if (document.getElementById("tc-chatfont-card")) return;
+    var fl = document.querySelector(".tc-font-list");
+    var screen = fl ? fl.closest(".tc-screen") : null;
+    if (!screen) {
+      var c = document.querySelector(".tc-screen .tc-settings-card");
+      screen = c ? c.closest(".tc-screen") : null;
+    }
+    if (!screen) return;
+    var anchor = document.getElementById("tc-theme-card") ||
+                 document.getElementById("tc-hero-card") ||
+                 document.getElementById("tc-push-card") ||
+                 screen.querySelector(".tc-settings-card");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(build(), anchor.nextSibling);
+    else screen.appendChild(build());
+  }
+
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(function(){ place(); }, 60);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 50);
+    mo.observe(document.body, { childList:true, subtree:true });
+    apply(current());
+    place();
+  }
+  window.addEventListener("load", start);
+  setTimeout(start, 300);
+})();
+</script>
+<script>
+/* ── Translate the partner's daily-question answer ────────────────────
+   Their reply shows in their own language, same as the chat does. My own
+   answer stays exactly as I wrote it.                                    */
+(function(){
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var FN_URL = SB_URL + "/functions/v1/quick-api";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+  var H = { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": "application/json" };
+
+  function myLang(){ return window.__tcLang === "tr" ? "tr" : "fr"; }
+  function cacheKey(text, to){ return "tc_tr_" + to + "_" + text.slice(0,40); }
+
+  async function translate(text, to){
+    var ck = cacheKey(text, to);
+    try { var cached = localStorage.getItem(ck); if (cached) return cached; } catch(e){}
+    try {
+      var r = await fetch(FN_URL, {
+        method: "POST", headers: H,
+        body: JSON.stringify({ action:"translate", text:text, fromLang: to==="tr"?"fr":"tr", toLang: to })
+      });
+      var data = await r.json();
+      var out = data && data.result ? data.result : text;
+      try { localStorage.setItem(ck, out); } catch(e){}
+      return out;
+    } catch(e){ return text; }
+  }
+
+  async function fixAnswers(){
+    // the partner's card is the second .tc-lm-title inside the daily-question sheet
+    var sheet = document.querySelector(".tc-dailyq-sheet");
+    if (!sheet) return;
+    var cards = sheet.querySelectorAll(".tc-card .tc-lm-title");
+    if (cards.length < 2) return;                 // partner hasn't answered yet
+    var partnerEl = cards[1];
+    if (partnerEl.__tcTranslated) return;
+    var original = partnerEl.textContent.trim();
+    if (!original) return;
+    partnerEl.__tcTranslated = true;
+    var translated = await translate(original, myLang());
+    if (translated && translated !== original) partnerEl.textContent = translated;
+  }
+
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(fixAnswers, 150);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 60);
+    mo.observe(document.body, { childList:true, subtree:true });
+    fixAnswers();
+  }
+  window.addEventListener("load", start);
+})();
+</script>
+<script>
+/* ── Show the newest message the instant the keyboard opens ──────────── */
+(function(){
+  function toBottom(){
+    var list = document.querySelector(".tc-chat-body-scroll");
+    if (!list) return;
+    list.scrollTop = list.scrollHeight;
+  }
+  var box = null;
+  function watch(){
+    var b = document.getElementById("tc-editbox");
+    if (!b || b === box) return;
+    box = b;
+    box.addEventListener("focus", function(){
+      // the keyboard animates in over ~250-350ms on iOS; catch it at a few points
+      [0, 60, 150, 300, 450].forEach(function(d){ setTimeout(toBottom, d); });
+    });
+  }
+  window.addEventListener("resize", function(){
+    // the visual viewport shrinks as the keyboard opens — follow it down
+    if (document.activeElement === box) toBottom();
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", function(){
+      if (document.activeElement === box) toBottom();
+    });
+  }
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(watch, 80);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 60);
+    mo.observe(document.body, { childList:true, subtree:true });
+    watch();
+  }
+  window.addEventListener("load", start);
+})();
+</script>
 </body>
 </html>

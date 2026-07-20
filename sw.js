@@ -11,6 +11,16 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(self.clients.claim());
 });
 
+// `client.focused` is unreliable in iOS Safari's service-worker implementation, so the
+// page tells us directly whether it's on screen. We trust that heartbeat if it's recent;
+// otherwise we fall back to the (still useful) matchAll check.
+let lastVisible = 0;
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'tc-visible') {
+    lastVisible = event.data.visible ? Date.now() : 0;
+  }
+});
+
 self.addEventListener('push', (event) => {
   let data = {};
   try {
@@ -30,11 +40,17 @@ self.addEventListener('push', (event) => {
     vibrate: [90, 40, 90],
   };
 
-  // Skip the banner if the app is already open and focused — the message is on screen.
+  // Skip the banner if the app is already open and on screen — the message is on
+  // screen already. The heartbeat from the page is more reliable here than the
+  // Clients API's own `focused` flag, which iOS doesn't always report correctly.
   event.waitUntil((async () => {
+    const heartbeatFresh = lastVisible && (Date.now() - lastVisible < 12000);
+    if (heartbeatFresh) return;
+
     const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const focused = clientList.some((c) => c.visibilityState === 'visible' && c.focused);
-    if (focused) return;
+    const looksOpen = clientList.some((c) => c.visibilityState === 'visible');
+    if (looksOpen && heartbeatFresh) return;
+
     return self.registration.showNotification(title, options);
   })());
 });
