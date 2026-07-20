@@ -2879,6 +2879,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     }, 80);
   });
   function start(){
+    // TEMPORARILY DISABLED for a performance test — remove this early return to restore.
+    return;
     if (!document.body) return setTimeout(start,50);
     mo.observe(document.body,{childList:true,subtree:true});
     document.querySelectorAll(".tc-bubble-row").forEach(hook);
