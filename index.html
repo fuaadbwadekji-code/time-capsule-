@@ -281,9 +281,9 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   border: 3px solid #170f2b !important;
   box-shadow: 0 3px 10px rgba(0,0,0,0.45);
 }.tc-root .tc-avatar-edit-badge svg { width: 17px; height: 17px; }.tc-root .tc-dailyq-overlay, .tc-root .tc-modal-overlay, .tc-root .tc-crop-backdrop {
-  background: rgba(10,5,20,0.78) !important;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: rgba(10,5,20,0.88) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }.tc-root .tc-dailyq-sheet, .tc-root .tc-modal-content {
   background: linear-gradient(180deg, #2b1c4c, #1a1132) !important;
   border: 1px solid var(--line) !important;
@@ -556,8 +556,34 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   to   { opacity: 1; transform: none; }
 }
 .tc-root .tc-bubble-row {
-  animation: tcBubbleIn 220ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  animation: tcBubbleIn 130ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
+
+/* The message box must never grow wide enough to cover the camera/mic icons,
+   and the bar itself should stay a fixed height even as the field grows tall. */
+.tc-root .tc-chat-inputbar {
+  align-items: flex-end !important;
+  flex-wrap: nowrap !important;
+}
+.tc-root .tc-chat-attach-group {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  gap: 4px;
+}
+.tc-root .tc-chat-attach-group.collapsed {
+  width: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: width 140ms ease, opacity 100ms ease;
+}
+.tc-root #tc-editbox {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.tc-root .tc-chat-send { flex: 0 0 auto !important; }
 </style>
 </head>
 <body>
@@ -2537,6 +2563,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     });
 
     function send(){
+      window.__tcJustSent = Date.now();
       var evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
       input.dispatchEvent(evt);
       box.innerHTML = "";
@@ -2609,6 +2636,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       if (btn && !btn.__tcHooked2) {
         btn.__tcHooked2 = true;
         btn.addEventListener("click", function(){
+          window.__tcJustSent = Date.now();
           setTimeout(function(){ box.innerHTML = ""; pushToApp(""); box.focus(); }, 20);
         });
       }
@@ -2666,7 +2694,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     strip.style.cssText =
       "display:flex;align-items:center;gap:10px;margin:0 -20px;padding:9px 20px;" +
       "background:rgba(169,124,236,.12);border-top:1px solid rgba(255,255,255,.07);" +
-      "animation:tcReplyIn 160ms ease";
+      "animation:tcReplyIn 90ms ease";
     var line = document.createElement("div");
     line.style.cssText = "width:3px;align-self:stretch;border-radius:3px;background:#A97CEC;flex:none";
     var col = document.createElement("div");
@@ -2714,7 +2742,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var x0=0,y0=0,dragging=false,held=null;
     row.addEventListener("touchstart", function(e){
       var t=e.touches[0]; x0=t.clientX; y0=t.clientY; dragging=false;
-      held=setTimeout(function(){ startReply(row); held=null; }, 320);
+      held=setTimeout(function(){ startReply(row); held=null; }, 260);
     }, {passive:true});
     row.addEventListener("touchmove", function(e){
       var t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
@@ -2750,9 +2778,9 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     target.scrollIntoView({ behavior:"smooth", block:"center" });
     var b = target.querySelector(".tc-bubble");
     if (b){
-      b.style.transition="box-shadow 220ms ease";
+      b.style.transition="box-shadow 120ms ease";
       b.style.boxShadow="0 0 0 2px #A97CEC, 0 0 18px rgba(169,124,236,.55)";
-      setTimeout(function(){ b.style.boxShadow=""; }, 1400);
+      setTimeout(function(){ b.style.boxShadow=""; }, 900);
     }
     if (navigator.vibrate) navigator.vibrate(6);
   }
@@ -2853,46 +2881,31 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (list.__tcHold) return;
     list.__tcHold = true;
 
-    var pinned = false;          // true while the reader is up in the history
-    var holdAt = 0;
+    var pinned = false, holdAt = 0, raf = null;
+    window.__tcJustSent = 0;
 
     list.addEventListener("scroll", function(){
+      if (Date.now() - window.__tcJustSent < 1500) { pinned = false; return; }
       var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
-      if (!list.__tcProgrammatic) {
-        pinned = !atBottom;
-        if (pinned) holdAt = list.scrollTop;
-      }
-    }, { passive:true });
+      pinned = !atBottom;
+      if (pinned) holdAt = list.scrollTop;
+    }, { passive: true });
 
-    // The app calls scrollTo / sets scrollTop to follow new messages. Let it through
-    // only when the reader is already at the end.
-    var nativeScrollTo = list.scrollTo.bind(list);
-    list.scrollTo = function(){
-      if (pinned) return;
-      list.__tcProgrammatic = true;
-      nativeScrollTo.apply(null, arguments);
-      setTimeout(function(){ list.__tcProgrammatic = false; }, 60);
-    };
-
-    var proto = Object.getPrototypeOf(list);
-    var desc = Object.getOwnPropertyDescriptor(proto, "scrollTop") ||
-               Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
-    if (desc && desc.set) {
-      Object.defineProperty(list, "scrollTop", {
-        configurable: true,
-        get: function(){ return desc.get.call(list); },
-        set: function(v){
-          if (pinned) {
-            // ignore a jump to the bottom, allow anything else (e.g. our own restore)
-            var toBottom = v >= list.scrollHeight - list.clientHeight - 60;
-            if (toBottom) return;
-          }
-          list.__tcProgrammatic = true;
-          desc.set.call(list, v);
-          setTimeout(function(){ list.__tcProgrammatic = false; }, 60);
+    // If the app jumps us to the end while we're up in the history, ease back to where
+    // we were on the next frame. No accessor override, no fighting native momentum —
+    // that hijacking of scrollTop itself is what was freezing the screen.
+    function watch(){
+      if (pinned && Date.now() - window.__tcJustSent > 1500) {
+        var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+        if (atBottom && Math.abs(list.scrollTop - holdAt) > 30) {
+          list.scrollTop = holdAt;
         }
-      });
+      } else if (Date.now() - window.__tcJustSent < 1500) {
+        list.scrollTop = list.scrollHeight;    // keep following while a send is in flight
+      }
+      raf = requestAnimationFrame(watch);
     }
+    raf = requestAnimationFrame(watch);
   }
   var mo = new MutationObserver(function(){
     var l = document.querySelector(".tc-chat-body-scroll");
