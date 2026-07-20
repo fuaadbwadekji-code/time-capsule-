@@ -2883,42 +2883,47 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (list.__tcHold) return;
     list.__tcHold = true;
 
-    var pinned = false, holdAt = 0, raf = null;
+    var pinned = false, holdAt = 0;
     window.__tcJustSent = 0;
-    // A "settling" window covers three moments where the thread must simply follow the
-    // bottom, exactly like DAY//2004's chat does: right after I send, right after the
-    // conversation is opened, and right after the keyboard opens or closes (its resize
-    // changes the wrapper's height without moving scrollTop on its own, which is what
-    // left the thread looking stuck half-way).
-    window.__tcSettleUntil = Date.now() + 260;   // settle once on first attach too
 
-    function settle(ms){ window.__tcSettleUntil = Math.max(window.__tcSettleUntil, Date.now() + ms); }
+    // Event-driven only — nothing runs every frame. A per-frame requestAnimationFrame
+    // loop reading scrollHeight/scrollTop was forcing the browser to recompute layout
+    // 60 times a second for as long as the chat stayed open; that constant layout
+    // thrashing was the real cost, far more than any animation duration.
+    var settleTimer = null;
+    function settle(ms){
+      window.__tcSettling = true;
+      pinned = false;
+      toBottomOnce();
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(function(){ window.__tcSettling = false; }, ms);
+    }
     window.__tcSettleChat = settle;
 
+    function toBottomOnce(){ list.scrollTop = list.scrollHeight; }
+
     list.addEventListener("scroll", function(){
-      if (Date.now() < window.__tcSettleUntil) { pinned = false; return; }
+      if (window.__tcSettling) return;
       var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
       pinned = !atBottom;
       if (pinned) holdAt = list.scrollTop;
     }, { passive: true });
 
-    function watch(){
-      if (Date.now() < window.__tcSettleUntil) {
-        list.scrollTop = list.scrollHeight;      // always follow the bottom while settling
-      } else if (pinned) {
+    // If new content lands (a message arrives, an image finishes loading) while the
+    // reader is pinned up in the history, correct it once — no continuous polling.
+    var ro = new ResizeObserver(function(){
+      if (window.__tcSettling) { toBottomOnce(); return; }
+      if (pinned) {
         var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
-        if (atBottom && Math.abs(list.scrollTop - holdAt) > 30) {
-          list.scrollTop = holdAt;
-        }
+        if (atBottom) list.scrollTop = holdAt;
       }
-      raf = requestAnimationFrame(watch);
-    }
-    raf = requestAnimationFrame(watch);
+    });
+    ro.observe(list);
 
-    // The keyboard's own resize (visualViewport) changes the wrapper's height without
-    // touching scrollTop — settle again once it finishes animating in or out.
+    settle(260);   // first open: jump to bottom once, no ongoing loop afterward
+
     if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", function(){ settle(320); });
+      window.visualViewport.addEventListener("resize", function(){ settle(280); });
     }
   }
   var mo = new MutationObserver(function(){
