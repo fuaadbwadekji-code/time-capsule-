@@ -2564,6 +2564,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
     function send(){
       window.__tcJustSent = Date.now();
+      if (window.__tcSettleChat) window.__tcSettleChat(600);
       var evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
       input.dispatchEvent(evt);
       box.innerHTML = "";
@@ -2637,6 +2638,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         btn.__tcHooked2 = true;
         btn.addEventListener("click", function(){
           window.__tcJustSent = Date.now();
+          if (window.__tcSettleChat) window.__tcSettleChat(600);
           setTimeout(function(){ box.innerHTML = ""; pushToApp(""); box.focus(); }, 20);
         });
       }
@@ -2883,29 +2885,41 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
     var pinned = false, holdAt = 0, raf = null;
     window.__tcJustSent = 0;
+    // A "settling" window covers three moments where the thread must simply follow the
+    // bottom, exactly like DAY//2004's chat does: right after I send, right after the
+    // conversation is opened, and right after the keyboard opens or closes (its resize
+    // changes the wrapper's height without moving scrollTop on its own, which is what
+    // left the thread looking stuck half-way).
+    window.__tcSettleUntil = Date.now() + 400;   // settle once on first attach too
+
+    function settle(ms){ window.__tcSettleUntil = Math.max(window.__tcSettleUntil, Date.now() + ms); }
+    window.__tcSettleChat = settle;
 
     list.addEventListener("scroll", function(){
-      if (Date.now() - window.__tcJustSent < 1500) { pinned = false; return; }
+      if (Date.now() < window.__tcSettleUntil) { pinned = false; return; }
       var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
       pinned = !atBottom;
       if (pinned) holdAt = list.scrollTop;
     }, { passive: true });
 
-    // If the app jumps us to the end while we're up in the history, ease back to where
-    // we were on the next frame. No accessor override, no fighting native momentum —
-    // that hijacking of scrollTop itself is what was freezing the screen.
     function watch(){
-      if (pinned && Date.now() - window.__tcJustSent > 1500) {
+      if (Date.now() < window.__tcSettleUntil) {
+        list.scrollTop = list.scrollHeight;      // always follow the bottom while settling
+      } else if (pinned) {
         var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
         if (atBottom && Math.abs(list.scrollTop - holdAt) > 30) {
           list.scrollTop = holdAt;
         }
-      } else if (Date.now() - window.__tcJustSent < 1500) {
-        list.scrollTop = list.scrollHeight;    // keep following while a send is in flight
       }
       raf = requestAnimationFrame(watch);
     }
     raf = requestAnimationFrame(watch);
+
+    // The keyboard's own resize (visualViewport) changes the wrapper's height without
+    // touching scrollTop — settle again once it finishes animating in or out.
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", function(){ settle(500); });
+    }
   }
   var mo = new MutationObserver(function(){
     var l = document.querySelector(".tc-chat-body-scroll");
@@ -3329,8 +3343,12 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (!b || b === box) return;
     box = b;
     box.addEventListener("focus", function(){
+      if (window.__tcSettleChat) window.__tcSettleChat(500);
       // the keyboard animates in over ~250-350ms on iOS; catch it at a few points
       [0, 60, 150, 300, 450].forEach(function(d){ setTimeout(toBottom, d); });
+    });
+    box.addEventListener("blur", function(){
+      if (window.__tcSettleChat) window.__tcSettleChat(500);
     });
   }
   window.addEventListener("resize", function(){
