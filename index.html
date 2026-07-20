@@ -31,53 +31,35 @@
 
   /* 2 · hold every observer and interval for the duration */
   var heldObservers = [];
+  // A consolidated single-observer version made things WORSE (confirmed by testing),
+  // so back to this simpler, safer form: each script keeps its own native observer
+  // (correct, isolated behaviour), and only the CALLBACK TIMING is shared — every
+  // callback that would have fired separately now lands together on one animation
+  // frame instead of each running its own pass the instant the DOM changes.
   var NativeMO = window.MutationObserver;
-
-  // Every script that watches the DOM was calling document.body with the exact same
-  // options (childList + subtree). That means fourteen separate native observers were
-  // each independently computing mutation records for the SAME tree on every change —
-  // real, compounding engine-level cost, not just callback timing. Replace all of them
-  // with ONE real native observer and fan its result out to every subscriber.
-  var subscribers = [];
-  var rafPending = false, pendingMuts = null;
+  var rafPending = false, rafQueue = [];
   function flushRaf(){
     rafPending = false;
-    var muts = pendingMuts; pendingMuts = null;
-    for (var i = 0; i < subscribers.length; i++) {
-      try { subscribers[i](muts); } catch(e){}
+    var q = rafQueue; rafQueue = [];
+    for (var i = 0; i < q.length; i++) {
+      try { q[i](); } catch(e){}
     }
   }
-  var sharedMO = null;
-  function ensureSharedObserver(){
-    if (sharedMO) return;
-    sharedMO = new NativeMO(function(muts){
+  function PatchedMO(cb){
+    var self = this;
+    var mo = new NativeMO(function(muts, obs){
       if (window.__tcScrolling) {
-        clearTimeout(ensureSharedObserver._pending);
-        ensureSharedObserver._pending = setTimeout(function(){
-          pendingMuts = muts;
-          for (var i = 0; i < subscribers.length; i++) { try { subscribers[i](muts); } catch(e){} }
-        }, 200);
+        clearTimeout(self._pending);
+        self._pending = setTimeout(function(){ cb(muts, obs); }, 200);
         return;
       }
-      pendingMuts = muts;
+      rafQueue.push(function(){ cb(muts, obs); });
       if (!rafPending) { rafPending = true; requestAnimationFrame(flushRaf); }
     });
-    if (document.body) sharedMO.observe(document.body, { childList: true, subtree: true });
-  }
-
-  function PatchedMO(cb){
-    var sub = function(muts){ cb(muts, this); };
-    this.observe = function(target, opts){
-      // every real caller in this app observes document.body with childList+subtree,
-      // so route them all through the single shared observer
-      ensureSharedObserver();
-      subscribers.push(sub);
-    };
-    this.disconnect = function(){
-      var i = subscribers.indexOf(sub);
-      if (i >= 0) subscribers.splice(i, 1);
-    };
-    this.takeRecords = function(){ return []; };
+    this._mo = mo;
+    this.observe = function(){ return mo.observe.apply(mo, arguments); };
+    this.disconnect = function(){ return mo.disconnect(); };
+    this.takeRecords = function(){ return mo.takeRecords(); };
     heldObservers.push(this);
   }
   window.MutationObserver = PatchedMO;
@@ -1989,11 +1971,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     checkOpened();
   }
   window.addEventListener("load", function(){
+    // TEMPORARILY DISABLED for a performance test — superseded by a newer script anyway.
+    return;
     setTimeout(tick, 2000);
     setInterval(tick, 8000);
   });
-  document.addEventListener("visibilitychange", function(){ if (!document.hidden) tick(); });
-  document.addEventListener("click", function(){ setTimeout(markRead, 400); }, true);
+  // also disabled for the test — these fired independently of the block above
+  // document.addEventListener("visibilitychange", function(){ if (!document.hidden) tick(); });
+  // document.addEventListener("click", function(){ setTimeout(markRead, 400); }, true);
 })();
 </script>
 <script>
@@ -2109,19 +2094,15 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (active && slow) { clearInterval(slow); slow = null; }
   }
   window.addEventListener("load", function(){
+    // TEMPORARILY DISABLED for a performance test — remove this early return to restore.
+    return;
     setTimeout(loop, 900);
     pace();
     setInterval(pace, 2000);
   });
-  document.addEventListener("visibilitychange", function(){ if (!document.hidden) loop(); });
-
-  // The moment the conversation opens, clear the unread state immediately.
-  var wasOpen = false;
-  setInterval(function(){
-    var now = chatOpen();
-    if (now && !wasOpen) { lastMark = 0; markRead(); }
-    wasOpen = now;
-  }, 500);
+  // also disabled for the test:
+  // document.addEventListener("visibilitychange", function(){ if (!document.hidden) loop(); });
+  // setInterval(function(){ var now=chatOpen(); if(now&&!wasOpen){lastMark=0;markRead();} wasOpen=now; }, 500);
 })();
 </script>
 <script>
@@ -2176,11 +2157,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     }
   }
   window.addEventListener("load", function(){
+    // TEMPORARILY DISABLED for a performance test — remove this early return to restore.
+    return;
     setTimeout(refreshTicks, 800);
     setPace();
     setInterval(setPace, 2000);
   });
-  document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshTicks(); });
+  // also disabled for the test:
+  // document.addEventListener("visibilitychange", function(){ if (!document.hidden) refreshTicks(); });
 })();
 </script>
 <script>
@@ -2477,6 +2461,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (mo._t) clearTimeout(mo._t);
     mo._t = setTimeout(mountBell, 60);
   });
+  // TEMPORARILY DISABLED for a performance test — remove this early return to restore.
+  return;
   window.addEventListener("load", function(){
     if (document.body) mo.observe(document.body, { childList:true, subtree:true });
     setTimeout(mountBell, 900);
