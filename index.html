@@ -3377,5 +3377,42 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   window.addEventListener("load", start);
 })();
 </script>
+<script>
+/* ── Pause the decorative star field whenever it's hidden behind something ──
+   Every screen (including the chat) renders ~47 looping CSS animations for a
+   starry background. Once the chat, a modal, or the daily-question sheet
+   covers the screen, that field is fully hidden yet iOS keeps animating it —
+   a continuous, invisible cost for as long as the app stays open. Pause it
+   whenever nothing can see it. */
+(function(){
+  function fullscreenOpen(){
+    return !!(
+      document.querySelector(".tc-chat-screen-wrap") ||
+      document.querySelector(".tc-modal-overlay") ||
+      document.querySelector(".tc-dailyq-overlay") ||
+      document.querySelector(".tc-crop-backdrop")
+    );
+  }
+  function sync(){
+    document.documentElement.classList.toggle("tc-stars-paused", fullscreenOpen());
+  }
+  var mo = new MutationObserver(function(){
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(sync, 60);
+  });
+  function start(){
+    if (!document.body) return setTimeout(start, 50);
+    mo.observe(document.body, { childList: true, subtree: true });
+    sync();
+  }
+  window.addEventListener("load", start);
+})();
+</script>
+<style>
+.tc-stars-paused .tc-star-field,
+.tc-stars-paused .tc-star-field * {
+  animation-play-state: paused !important;
+}
+</style>
 </body>
 </html>
