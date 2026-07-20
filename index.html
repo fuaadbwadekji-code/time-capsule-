@@ -3821,12 +3821,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }
 
   function renderNewOptimistic(m) {
-    var wasBottom = isNearBottom();
     var frag = document.createElement("div");
     frag.innerHTML = bubbleHTML(m);
     els.list.appendChild(frag.firstChild);
     hookRows();
-    if (wasBottom) els.list.scrollTop = els.list.scrollHeight;
+    // I just sent this — always bring it into view, keyboard height included.
+    layout();
+    requestAnimationFrame(function () { els.list.scrollTop = els.list.scrollHeight; });
+    setTimeout(function () { els.list.scrollTop = els.list.scrollHeight; }, 120);
   }
 
   // ── photo / mic: delegate to the still-mounted (hidden) native chat ──
@@ -3843,8 +3845,11 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var height = vv ? vv.height : window.innerHeight;
     els.wrap.style.top = top + "px";
     els.wrap.style.height = height + "px";
-    // keep the newest message visible after any viewport change
-    requestAnimationFrame(function () { stickToBottomIfNeeded(); });
+    // The keyboard opening or closing resizes this container without moving the
+    // scroll position on its own — always snap to the newest message so nothing
+    // is ever left hanging half-way.
+    requestAnimationFrame(function () { els.list.scrollTop = els.list.scrollHeight; });
+    setTimeout(function () { els.list.scrollTop = els.list.scrollHeight; }, 260);
   }
 
   // ── delete conversation ────────────────────────────────────────────
@@ -3906,6 +3911,13 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
     });
     els.field.addEventListener("input", function () { autoGrow(); announceTyping(); });
+    els.field.addEventListener("focus", function () {
+      // catch the keyboard's opening animation at a few points, same idea as layout()
+      [0, 60, 150, 300, 450].forEach(function (d) { setTimeout(layout, d); });
+    });
+    els.field.addEventListener("blur", function () {
+      [0, 60, 150, 300].forEach(function (d) { setTimeout(layout, d); });
+    });
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", layout);
@@ -3974,7 +3986,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   var style = document.createElement("style");
   style.textContent = [
     "#ntc-wrap{position:fixed;left:0;right:0;top:0;z-index:500;display:none;flex-direction:column;",
-    "background:#0E0B18;font-family:-apple-system,sans-serif;}",
+    "background:#0E0B18;font-family:-apple-system,sans-serif;width:100%;max-width:100vw;",
+    "overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y;}",
     ".ntc-header{flex:0 0 auto;display:flex;align-items:center;gap:10px;",
     "padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:#171224;}",
     ".ntc-back{background:rgba(255,255,255,.08);border:none;color:#F4EEFF;width:34px;height:34px;",
@@ -3986,7 +3999,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     ".ntc-menu{background:rgba(255,255,255,.08);border:none;color:#F4EEFF;width:34px;height:34px;",
     "border-radius:50%;font-size:16px;flex:none;}",
     ".ntc-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;",
-    "overscroll-behavior:contain;padding:12px 10px;}",
+    "overscroll-behavior:contain;overscroll-behavior-x:none;touch-action:pan-y;",
+    "width:100%;max-width:100%;box-sizing:border-box;padding:12px 10px;}",
     ".ntc-row{display:flex;margin-bottom:6px;}",
     ".ntc-row.me{justify-content:flex-end;}",
     ".ntc-bubble{position:relative;max-width:78%;padding:8px 12px 18px;border-radius:8px;",
