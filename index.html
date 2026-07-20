@@ -179,7 +179,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   padding: 13px 20px !important;
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(106,75,176,0.34) !important;
-  transition: transform 130ms var(--ease), box-shadow 200ms var(--ease), opacity 200ms;
+  transition: transform 72ms var(--ease), box-shadow 110ms var(--ease), opacity 110ms;
 }.tc-root .tc-btn-primary:active, .tc-root .tc-lock-btn:active { transform: scale(0.972); box-shadow: 0 2px 8px rgba(106,75,176,0.26) !important; }.tc-root .tc-btn-primary:disabled { opacity: 0.42; box-shadow: none !important; }.tc-root .tc-btn-small {
   width: auto !important;
   align-self: flex-start;
@@ -200,7 +200,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   padding: 12px 18px !important;
   font-weight: 500 !important;
   cursor: pointer;
-  transition: background 180ms var(--ease);
+  transition: background 99ms var(--ease);
 }.tc-root .tc-btn-secondary:active, .tc-root .tc-logout-btn:active { background: rgba(255,255,255,0.13) !important; }.tc-root .tc-btn-link { color: var(--violet) !important; font-weight: 500; }.tc-root .tc-icon-btn, .tc-root .tc-modal-close, .tc-root .tc-chat-back {
   background: var(--surface-2) !important;
   border: 1px solid var(--line-soft) !important;
@@ -208,7 +208,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   width: 38px; height: 38px;
   display: flex; align-items: center; justify-content: center;
   color: var(--ink-soft) !important;
-  transition: background 160ms var(--ease), transform 130ms var(--ease);
+  transition: background 88ms var(--ease), transform 72ms var(--ease);
 }.tc-root .tc-icon-btn:active, .tc-root .tc-modal-close:active, .tc-root .tc-chat-back:active {
   background: rgba(255,255,255,0.14) !important; transform: scale(0.94);
 }.tc-root .tc-icon-btn:disabled { opacity: 0.35; }.tc-root .tc-textarea, .tc-root .tc-title-input, .tc-root .tc-journal-textarea, .tc-root .tc-dailyq-textarea, .tc-root .tc-chat-text-input, .tc-root .tc-pin-input, .tc-root .tc-date-input {
@@ -218,7 +218,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   color: var(--ink) !important;
   box-sizing: border-box !important;
   max-width: 100%;
-  transition: border-color 180ms var(--ease), background 180ms var(--ease);
+  transition: border-color 99ms var(--ease), background 99ms var(--ease);
 }.tc-root .tc-textarea:focus, .tc-root .tc-title-input:focus, .tc-root .tc-journal-textarea:focus, .tc-root .tc-dailyq-textarea:focus, .tc-root .tc-chat-text-input:focus, .tc-root .tc-pin-input:focus, .tc-root .tc-date-input:focus {
   outline: none !important;
   border-color: rgba(169,124,236,0.6) !important;
@@ -245,7 +245,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   padding: 9px 15px !important;
   font-size: 0.83em !important;
   font-weight: 500;
-  transition: background 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease);
+  transition: background 88ms var(--ease), color 88ms var(--ease), border-color 88ms var(--ease);
 }.tc-root .tc-filter-chip.selected, .tc-root .tc-filter-chip.active, .tc-root .tc-preset-btn.selected, .tc-root .tc-type-btn.selected, .tc-root .tc-tab-btn.active {
   background: rgba(169,124,236,0.18) !important;
   border-color: rgba(169,124,236,0.5) !important;
@@ -271,7 +271,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   border-top: 1px solid var(--line-soft) !important;
 }.tc-root .tc-nav-btn, .tc-root .tc-nav-item {
   color: var(--ink-faint) !important;
-  transition: color 180ms var(--ease), transform 180ms var(--ease);
+  transition: color 99ms var(--ease), transform 99ms var(--ease);
 }.tc-root .tc-nav-btn.active, .tc-root .tc-nav-item.active {
   color: var(--violet) !important;
   transform: translateY(-1px);
@@ -306,12 +306,12 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 }.tc-root .tc-fab {
   background: linear-gradient(135deg, var(--violet), var(--violet-dp)) !important;
   box-shadow: 0 8px 24px rgba(106,75,176,0.5) !important;
-  transition: transform 150ms var(--ease);
+  transition: transform 82ms var(--ease);
 }.tc-root .tc-fab:active { transform: scale(0.93); }
 
 
 @media (prefers-reduced-motion: no-preference) {.tc-root .tc-dailyq-sheet, .tc-root .tc-modal-content {
-    animation: tcSheetUp 260ms var(--ease) both;
+    animation: tcSheetUp 143ms var(--ease) both;
   }
   @keyframes tcSheetUp {
     from { opacity: 0; transform: translate3d(0, 22px, 0); }
@@ -333,8 +333,8 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   color: var(--ink-soft) !important;
   font-size: 0.78em !important;
   min-height: 88px;
-  transition: background 180ms var(--ease), border-color 180ms var(--ease),
-              color 180ms var(--ease), transform 140ms var(--ease);
+  transition: background 99ms var(--ease), border-color 99ms var(--ease),
+              color 99ms var(--ease), transform 77ms var(--ease);
 }.tc-root .tc-type-btn:active { transform: scale(0.97); }.tc-root .tc-type-btn.selected {
   background: rgba(169,124,236,0.16) !important;
   border-color: rgba(169,124,236,0.55) !important;
@@ -351,8 +351,8 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   font-size: 0.88em !important;
   font-weight: 500;
   text-align: center;
-  transition: background 180ms var(--ease), border-color 180ms var(--ease),
-              color 180ms var(--ease), transform 140ms var(--ease);
+  transition: background 99ms var(--ease), border-color 99ms var(--ease),
+              color 99ms var(--ease), transform 77ms var(--ease);
 }.tc-root .tc-preset-btn:active { transform: scale(0.975); }.tc-root .tc-preset-btn.selected {
   background: rgba(169,124,236,0.18) !important;
   border-color: rgba(169,124,236,0.6) !important;
@@ -556,7 +556,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   to   { opacity: 1; transform: none; }
 }
 .tc-root .tc-bubble-row {
-  animation: tcBubbleIn 130ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  animation: tcBubbleIn 72ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
 
 /* The message box must never grow wide enough to cover the camera/mic icons,
@@ -575,7 +575,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   overflow: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
-  transition: width 140ms ease, opacity 100ms ease;
+  transition: width 77ms ease, opacity 70ms ease;
 }
 .tc-root #tc-editbox {
   flex: 1 1 auto !important;
@@ -754,7 +754,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   border-radius:14px;
   color:#f2eaff;
   box-sizing:border-box;
-  transition:border-color 160ms ease, background 160ms ease;
+  transition:border-color 88ms ease, background 88ms ease;
 }
 .tc-date-input:focus, .tc-pin-input:focus, .tc-journal-textarea:focus,
 .tc-dailyq-textarea:focus, .tc-settings-card input[type=text]:focus, .tc-chat-input:focus {
@@ -768,7 +768,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   font-weight:600; letter-spacing:0.2px;
   padding:13px 18px; cursor:pointer;
   box-shadow:0 4px 14px rgba(106,75,176,0.38);
-  transition:transform 120ms ease, box-shadow 160ms ease, opacity 160ms ease;
+  transition:transform 70ms ease, box-shadow 88ms ease, opacity 88ms ease;
 }
 .tc-btn-primary:active { transform:scale(0.975); box-shadow:0 2px 8px rgba(106,75,176,0.3); }
 .tc-btn-primary:disabled { opacity:0.45; box-shadow:none; }
@@ -776,7 +776,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
   background:rgba(255,255,255,0.07); color:#e8dcff;
   border:1px solid rgba(255,255,255,0.14); border-radius:14px;
   padding:12px 18px; font-weight:500; cursor:pointer;
-  transition:background 160ms ease;
+  transition:background 88ms ease;
 }
 .tc-btn-secondary:active { background:rgba(255,255,255,0.13); }
 
@@ -787,7 +787,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 
 /* bottom nav: quieter, with a clearer active state */
 .tc-bottom-nav { background:rgba(18,11,36,0.96); border-top:1px solid rgba(255,255,255,0.08); }
-.tc-nav-btn { transition:color 160ms ease, transform 160ms ease; }
+.tc-nav-btn { transition:color 88ms ease, transform 88ms ease; }
 .tc-nav-btn.active { transform:translateY(-1px); }
 
 /* chat bubbles: a touch more air and softer corners */
@@ -801,7 +801,7 @@ html, body { margin:0; padding:0; background:#170f2b; overflow-x:hidden; min-hei
 .tc-logout-btn { position:relative; z-index:1; width:100%; background:rgba(255,80,80,0.2); }
 .tc-modal-overlay { position:absolute; inset:0; z-index:20; background:rgba(10,5,20,0.75); display:flex; align-items:center; justify-content:center; padding:20px; }
 .tc-dailyq-overlay { z-index:300; background:rgba(10,5,20,0.78); backdrop-filter:blur(4px); display:flex; align-items:flex-end; overflow:hidden; overscroll-behavior:contain; touch-action:none; }
-.tc-dailyq-sheet { position:relative; width:100%; max-height:82dvh; display:flex; flex-direction:column; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; background:linear-gradient(180deg,#2a1a4a,#170f2b); border-radius:22px 22px 0 0; padding:20px 18px calc(24px + env(safe-area-inset-bottom)); border:1px solid rgba(255,255,255,0.12); border-bottom:none; animation:tcSheetUp 240ms cubic-bezier(0.2,0.9,0.3,1.05);  touch-action:pan-y; }
+.tc-dailyq-sheet { position:relative; width:100%; max-height:82dvh; display:flex; flex-direction:column; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; background:linear-gradient(180deg,#2a1a4a,#170f2b); border-radius:22px 22px 0 0; padding:20px 18px calc(24px + env(safe-area-inset-bottom)); border:1px solid rgba(255,255,255,0.12); border-bottom:none; animation:tcSheetUp 132ms cubic-bezier(0.2,0.9,0.3,1.05);  touch-action:pan-y; }
 @keyframes tcSheetUp { from { transform:translateY(24px); opacity:0; } to { transform:translateY(0); opacity:1; } }
 .tc-dailyq-label { font-weight:700; opacity:0.85; margin-bottom:6px; }
 .tc-dailyq-question { font-weight:700; font-size:1.1em; margin-bottom:14px; }
@@ -1356,7 +1356,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         'position:absolute;top:42px;right:0;min-width:210px;z-index:200;' +
         'background:#2a1b4d;border:1px solid rgba(255,255,255,.2);border-radius:14px;' +
         'overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.6);' +
-        'transform-origin:top right;animation:tcXMenu 150ms cubic-bezier(.2,.9,.3,1.2)';
+        'transform-origin:top right;animation:tcXMenu 82ms cubic-bezier(.2,.9,.3,1.2)';
 
       var item = document.createElement('button');
       item.textContent = '\uD83D\uDDD1  ' + t.del;
@@ -1518,7 +1518,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       'border:1px solid rgba(255,255,255,.14);border-radius:24px;' +
       'padding:26px 22px calc(22px + env(safe-area-inset-bottom));' +
       'box-shadow:0 22px 50px rgba(0,0,0,.6);' +
-      'animation:tcTourIn 260ms cubic-bezier(.2,.9,.3,1.05)';
+      'animation:tcTourIn 143ms cubic-bezier(.2,.9,.3,1.05)';
 
     var icon = document.createElement('div');
     icon.style.cssText = 'font-size:38px;text-align:center;line-height:1;margin-bottom:12px';
@@ -1578,7 +1578,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   style.textContent =
     '@keyframes tcTourIn{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}' +
     '.tc-tour-glow{position:relative;border-radius:12px;' +
-    'box-shadow:0 0 0 2px #A97CEC, 0 0 18px rgba(169,124,236,.7);transition:box-shadow 220ms ease}';
+    'box-shadow:0 0 0 2px #A97CEC, 0 0 18px rgba(169,124,236,.7);transition:box-shadow 121ms ease}';
   document.head.appendChild(style);
 
   async function maybeStart(){
@@ -1916,7 +1916,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       "position:fixed;left:14px;right:14px;top:calc(env(safe-area-inset-top) + 12px);z-index:700;" +
       "background:linear-gradient(135deg,#A97CEC,#6A4BB0);color:#fff;border-radius:16px;" +
       "padding:13px 16px;font-size:13.5px;font-weight:600;font-family:-apple-system,sans-serif;" +
-      "box-shadow:0 10px 26px rgba(0,0,0,.5);animation:tcToastIn 260ms cubic-bezier(.2,.9,.3,1.05)";
+      "box-shadow:0 10px 26px rgba(0,0,0,.5);animation:tcToastIn 143ms cubic-bezier(.2,.9,.3,1.05)";
     t.textContent = text;
     t.onclick = function(){ t.remove(); };
     document.body.appendChild(t);
@@ -2381,7 +2381,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       "background:linear-gradient(180deg,#2b1c4c,#1a1132);border:1px solid rgba(255,255,255,.14);" +
       "border-radius:24px 24px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));" +
       "max-height:76dvh;display:flex;flex-direction:column;" +
-      "animation:tcActIn 240ms cubic-bezier(.2,.9,.3,1.05)";
+      "animation:tcActIn 132ms cubic-bezier(.2,.9,.3,1.05)";
 
     var head = document.createElement("div");
     head.style.cssText = "display:flex;align-items:center;gap:10px;margin-bottom:6px";
@@ -2564,7 +2564,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
     function send(){
       window.__tcJustSent = Date.now();
-      if (window.__tcSettleChat) window.__tcSettleChat(600);
+      if (window.__tcSettleChat) window.__tcSettleChat(380);
       var evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
       input.dispatchEvent(evt);
       box.innerHTML = "";
@@ -2638,7 +2638,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         btn.__tcHooked2 = true;
         btn.addEventListener("click", function(){
           window.__tcJustSent = Date.now();
-          if (window.__tcSettleChat) window.__tcSettleChat(600);
+          if (window.__tcSettleChat) window.__tcSettleChat(380);
           setTimeout(function(){ box.innerHTML = ""; pushToApp(""); box.focus(); }, 20);
         });
       }
@@ -2696,7 +2696,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     strip.style.cssText =
       "display:flex;align-items:center;gap:10px;margin:0 -20px;padding:9px 20px;" +
       "background:rgba(169,124,236,.12);border-top:1px solid rgba(255,255,255,.07);" +
-      "animation:tcReplyIn 90ms ease";
+      "animation:tcReplyIn 70ms ease";
     var line = document.createElement("div");
     line.style.cssText = "width:3px;align-self:stretch;border-radius:3px;background:#A97CEC;flex:none";
     var col = document.createElement("div");
@@ -2744,7 +2744,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var x0=0,y0=0,dragging=false,held=null;
     row.addEventListener("touchstart", function(e){
       var t=e.touches[0]; x0=t.clientX; y0=t.clientY; dragging=false;
-      held=setTimeout(function(){ startReply(row); held=null; }, 260);
+      held=setTimeout(function(){ startReply(row); held=null; }, 170);
     }, {passive:true});
     row.addEventListener("touchmove", function(e){
       var t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
@@ -2759,7 +2759,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       clearTimeout(held); held=null;
       var dx=0;
       if (e.changedTouches && e.changedTouches[0]) dx=e.changedTouches[0].clientX-x0;
-      row.style.transition="transform 180ms cubic-bezier(.2,.9,.3,1)";
+      row.style.transition="transform 99ms cubic-bezier(.2,.9,.3,1)";
       row.style.transform="";
       if (dragging && Math.abs(dx)>45) startReply(row);
       dragging=false;
@@ -2780,7 +2780,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     target.scrollIntoView({ behavior:"smooth", block:"center" });
     var b = target.querySelector(".tc-bubble");
     if (b){
-      b.style.transition="box-shadow 120ms ease";
+      b.style.transition="box-shadow 70ms ease";
       b.style.boxShadow="0 0 0 2px #A97CEC, 0 0 18px rgba(169,124,236,.55)";
       setTimeout(function(){ b.style.boxShadow=""; }, 900);
     }
@@ -2890,7 +2890,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     // conversation is opened, and right after the keyboard opens or closes (its resize
     // changes the wrapper's height without moving scrollTop on its own, which is what
     // left the thread looking stuck half-way).
-    window.__tcSettleUntil = Date.now() + 400;   // settle once on first attach too
+    window.__tcSettleUntil = Date.now() + 260;   // settle once on first attach too
 
     function settle(ms){ window.__tcSettleUntil = Math.max(window.__tcSettleUntil, Date.now() + ms); }
     window.__tcSettleChat = settle;
@@ -2918,7 +2918,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     // The keyboard's own resize (visualViewport) changes the wrapper's height without
     // touching scrollTop — settle again once it finishes animating in or out.
     if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", function(){ settle(500); });
+      window.visualViewport.addEventListener("resize", function(){ settle(320); });
     }
   }
   var mo = new MutationObserver(function(){
@@ -3343,12 +3343,12 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (!b || b === box) return;
     box = b;
     box.addEventListener("focus", function(){
-      if (window.__tcSettleChat) window.__tcSettleChat(500);
-      // the keyboard animates in over ~250-350ms on iOS; catch it at a few points
-      [0, 60, 150, 300, 450].forEach(function(d){ setTimeout(toBottom, d); });
+      if (window.__tcSettleChat) window.__tcSettleChat(320);
+      // the keyboard animates in over ~250-193ms on iOS; catch it at a few points
+      [0, 30, 80, 160].forEach(function(d){ setTimeout(toBottom, d); });
     });
     box.addEventListener("blur", function(){
-      if (window.__tcSettleChat) window.__tcSettleChat(500);
+      if (window.__tcSettleChat) window.__tcSettleChat(320);
     });
   }
   window.addEventListener("resize", function(){
