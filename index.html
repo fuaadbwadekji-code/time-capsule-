@@ -3865,7 +3865,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     setTimeout(function () { els.list.scrollTop = els.list.scrollHeight; }, 120);
   }
 
-  // ── photo / mic: delegate to the still-mounted (hidden) native chat ──
+  // ── back / mic: delegate to the still-mounted (hidden) native chat ──
   function forwardTo(selector) {
     if (!nativeWrap) return;
     var el = nativeWrap.querySelector(selector);
@@ -3876,6 +3876,86 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var buttons = nativeWrap.querySelectorAll(".tc-icon-btn");
     var el = buttons[index];
     if (el) el.click();
+  }
+
+  // ── photo: handled entirely here now — upload straight to the same storage
+  //    bucket the rest of the app uses, with our own quick preview ──────────
+  var BUCKET = "capsules-media";
+  var photoInput = null;
+  function ensurePhotoInput() {
+    if (photoInput) return photoInput;
+    photoInput = document.createElement("input");
+    photoInput.type = "file";
+    photoInput.accept = "image/*";
+    photoInput.style.display = "none";
+    photoInput.addEventListener("change", function (e) {
+      var file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (file) openPhotoPreview(file);
+    });
+    document.body.appendChild(photoInput);
+    return photoInput;
+  }
+
+  var photoModalEl = null;
+  function openPhotoPreview(file) {
+    var url = URL.createObjectURL(file);
+    var back = document.createElement("div");
+    back.className = "ntc-photo-modal";
+    back.innerHTML =
+      '<div class="ntc-photo-sheet">' +
+        '<img src="' + url + '" alt="" />' +
+        '<div class="ntc-photo-actions">' +
+          '<button class="ntc-photo-cancel">' + esc(t().cancel) + '</button>' +
+          '<button class="ntc-photo-send">➤</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(back);
+    photoModalEl = back;
+
+    back.querySelector(".ntc-photo-cancel").onclick = function () {
+      URL.revokeObjectURL(url);
+      back.remove();
+      photoModalEl = null;
+    };
+    back.querySelector(".ntc-photo-send").onclick = async function () {
+      var btn = back.querySelector(".ntc-photo-send");
+      btn.disabled = true;
+      btn.textContent = "…";
+      try {
+        var path = "messages/" + me.id + "-" + Date.now() + ".jpg";
+        var upRes = await fetch(SB_URL + "/storage/v1/object/" + BUCKET + "/" + path, {
+          method: "POST",
+          headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": file.type || "image/jpeg" },
+          body: file,
+        });
+        if (!upRes.ok) throw new Error("upload failed: " + upRes.status);
+        var publicUrl = SB_URL + "/storage/v1/object/public/" + BUCKET + "/" + path;
+
+        var r = await fetch(SB_URL + "/rest/v1/messages", {
+          method: "POST",
+          headers: Object.assign({ Prefer: "return=representation" }, HJ),
+          body: JSON.stringify({ sender_id: me.id, recipient_id: partner.id, type: "photo", media_url: publicUrl }),
+        });
+        var rows = await r.json();
+        var saved = Array.isArray(rows) ? rows[0] : null;
+        if (saved) {
+          saved.__new = true;
+          if (!messages.some(function (m) { return m.id === saved.id; })) {
+            messages.push(saved);
+            renderNew([saved]);
+            lastCreatedAt = saved.created_at;
+          }
+        }
+        URL.revokeObjectURL(url);
+        back.remove();
+        photoModalEl = null;
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "➤";
+        window.alert("Erreur: " + (err && err.message || err));
+      }
+    };
   }
 
   // ── keyboard: simple, direct visualViewport handling (no guards, no fights) ──
@@ -4025,7 +4105,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
     els.back.onclick = function () { hide(); forwardTo(".tc-chat-back"); };
     els.menu.onclick = toggleMenu;
-    els.cam.onclick = function () { forwardToIcon(0); };   // camera is the first icon button
+    els.cam.onclick = function () { ensurePhotoInput().click(); };
     els.mic.onclick = function () { forwardToIcon(1); };   // mic is the second
     // Tapping the send button naturally steals focus from the field, which is what
     // dismisses the keyboard. Block that on press, and keep focus on the field.
@@ -4062,19 +4142,9 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     els.field.style.height = Math.min(els.field.scrollHeight, 120) + "px";
   }
 
-  var collapseTimer = null;
   function setAttachCollapsed(on) {
     if (!els.attachGroup) return;
-    clearTimeout(collapseTimer);
-    if (on) {
-      els.attachGroup.classList.add("collapsed");
-      collapseTimer = setTimeout(function () {
-        els.attachGroup.classList.add("collapsed-hard");
-      }, 110);
-    } else {
-      els.attachGroup.classList.remove("collapsed-hard");
-      els.attachGroup.classList.remove("collapsed");
-    }
+    els.attachGroup.classList.toggle("collapsed", on);
   }
 
   // ── show / hide, wired to the native chat's own open/close ─────────
@@ -4176,8 +4246,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "width:100%;max-width:100%;box-sizing:border-box;padding:12px 10px;}",
     ".ntc-row{display:flex;margin-bottom:6px;}",
     ".ntc-row.me{justify-content:flex-end;}",
-    ".ntc-row.ntc-new{animation:ntcRowIn 160ms ease-out both;}",
-    "@keyframes ntcRowIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}",
+    ".ntc-row.ntc-new{animation:ntcRowIn 150ms cubic-bezier(.2,.8,.3,1) both;}",
+    "@keyframes ntcRowIn{from{opacity:0;transform:translateY(5px) scale(.96)}to{opacity:1;transform:none}}",
     ".ntc-bubble{position:relative;max-width:78%;padding:8px 12px;border-radius:8px;",
     "font-size:14.4px;line-height:1.5;color:#F4EEFF;word-break:break-word;}",
     ".ntc-bubble.them{background:#1E1830;border-top-left-radius:2px;}",
@@ -4209,19 +4279,31 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "background:rgba(255,255,255,.1);color:#CFC2E8;font-size:11px;}",
     ".ntc-footer{flex:0 0 auto;display:flex;align-items:flex-end;gap:6px;position:relative;z-index:1;",
     "padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:#171224;}",
-    ".ntc-attach-group{display:flex;align-items:center;gap:2px;flex:0 0 auto;width:80px;",
-    "transform:scale(1);opacity:1;transform-origin:right center;",
-    "transition:transform 110ms ease,opacity 90ms ease;}",
-    ".ntc-attach-group.collapsed{transform:scale(.7);opacity:0;pointer-events:none;}",
-    ".ntc-attach-group.collapsed-hard{width:0;margin:0;}",
+    ".ntc-attach-group{display:flex;align-items:center;gap:2px;flex:0 0 auto;width:76px;",
+    "overflow:hidden;opacity:1;transition:width 150ms ease,opacity 110ms ease;}",
+    ".ntc-attach-group.collapsed{width:0;opacity:0;pointer-events:none;}",
     ".ntc-cam,.ntc-mic{background:none;border:none;color:#CFC2E8;flex:none;padding:7px;",
     "display:flex;align-items:center;justify-content:center;}",
     ".ntc-field{flex:1;min-width:0;max-height:120px;background:#221B36;border:none;",
     "border-radius:20px;color:#F4EEFF;font-size:15px;padding:10px 14px;resize:none;",
-    "font-family:inherit;line-height:1.4;}",
+    "font-family:inherit;line-height:1.4;transition:height 110ms ease;}",
     ".ntc-send{width:38px;height:38px;border-radius:50%;border:none;flex:none;",
     "display:flex;align-items:center;justify-content:center;",
     "background:linear-gradient(135deg,#A97CEC,#6A4BB0);color:#fff;}",
+    ".ntc-photo-modal{position:fixed;inset:0;z-index:950;background:rgba(8,4,18,.88);",
+    "display:flex;align-items:center;justify-content:center;padding:20px;",
+    "font-family:-apple-system,sans-serif;animation:ntcPhotoIn 140ms ease both;}",
+    "@keyframes ntcPhotoIn{from{opacity:0}to{opacity:1}}",
+    ".ntc-photo-sheet{width:100%;max-width:340px;background:#171224;border-radius:20px;",
+    "padding:14px;box-sizing:border-box;box-shadow:0 20px 50px rgba(0,0,0,.6);}",
+    ".ntc-photo-sheet img{width:100%;max-height:60vh;object-fit:contain;border-radius:12px;",
+    "display:block;background:#000;}",
+    ".ntc-photo-actions{display:flex;gap:10px;margin-top:14px;}",
+    ".ntc-photo-cancel{flex:1;background:rgba(255,255,255,.08);border:none;",
+    "color:#F4EEFF;border-radius:14px;padding:12px;font-size:14px;}",
+    ".ntc-photo-send{width:48px;height:48px;border-radius:50%;border:none;flex:none;",
+    "background:linear-gradient(135deg,#A97CEC,#6A4BB0);color:#fff;font-size:16px;",
+    "display:flex;align-items:center;justify-content:center;margin-left:auto;}",
     ".ntc-loading{text-align:center;padding:24px;color:#8E86A6;font-size:20px;letter-spacing:4px;}",
     /* the animated starfield, sitting behind the messages so it never affects layout */
     "#ntc-stars{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0;}",
