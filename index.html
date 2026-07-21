@@ -3522,6 +3522,15 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     } catch (e) { messages = []; }
   }
 
+  // Runs after both loadPeople() and loadInitialMessages() have resolved — hide
+  // anything before my own personal "cleared" point, if I've ever cleared the chat.
+  function applyClearedFilter() {
+    if (me && me.chat_cleared_at) {
+      var cutoff = new Date(me.chat_cleared_at).getTime();
+      messages = messages.filter(function (m) { return new Date(m.created_at).getTime() > cutoff; });
+    }
+  }
+
   async function pollNewMessages() {
     var id = myId();
     if (!id) return;
@@ -3787,7 +3796,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     els.field.value = "";
     autoGrow();
     stopTyping();
-    els.attachGroup.classList.remove("collapsed");
+    setAttachCollapsed(false);
 
     var replyRef = pendingReply;
     pendingReply = null;
@@ -3851,9 +3860,10 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }
 
   // ── photo / mic: delegate to the still-mounted (hidden) native chat ──
-  function forwardTo(selector) {
+  function forwardTo(index) {
     if (!nativeWrap) return;
-    var el = nativeWrap.querySelector(selector);
+    var buttons = nativeWrap.querySelectorAll(".tc-icon-btn");
+    var el = buttons[index];
     if (el) el.click();
   }
 
@@ -3878,15 +3888,42 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     setTimeout(function () { els.list.scrollTop = els.list.scrollHeight; }, 260);
   }
 
+  // ── the ⋯ dropdown ─────────────────────────────────────────────────
+  var openMenu = null;
+  function closeMenu() {
+    if (openMenu) { openMenu.remove(); openMenu = null; }
+    var b = els.menuWrap.querySelector(".ntc-menu-backdrop");
+    if (b) b.remove();
+  }
+  function toggleMenu() {
+    if (openMenu) { closeMenu(); return; }
+    var backdrop = document.createElement("div");
+    backdrop.className = "ntc-menu-backdrop";
+    backdrop.onclick = closeMenu;
+    els.menuWrap.appendChild(backdrop);
+
+    var drop = document.createElement("div");
+    drop.className = "ntc-menu-drop";
+    var item = document.createElement("button");
+    item.className = "ntc-menu-item";
+    item.textContent = "🗑  " + t().delete;
+    item.onclick = function () { closeMenu(); deleteConversation(); };
+    drop.appendChild(item);
+    els.menuWrap.appendChild(drop);
+    openMenu = drop;
+  }
+
   // ── delete conversation ────────────────────────────────────────────
   async function deleteConversation() {
     if (!window.confirm(t().confirmDelete)) return;
     try {
-      await fetch(SB_URL + "/rest/v1/messages?created_at=not.is.null", {
-        method: "DELETE", headers: Object.assign({ Prefer: "return=minimal" }, HJ),
+      var now = new Date().toISOString();
+      await fetch(SB_URL + "/rest/v1/accounts?id=eq." + me.id, {
+        method: "PATCH", headers: Object.assign({ Prefer: "return=minimal" }, HJ),
+        body: JSON.stringify({ chat_cleared_at: now }),
       });
-      messages = [];
-      lastCreatedAt = null;
+      me.chat_cleared_at = now;
+      messages = messages.filter(function (m) { return new Date(m.created_at) > new Date(now); });
       renderAll();
     } catch (e) {}
   }
@@ -3925,7 +3962,9 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         '<button class="ntc-back">←</button>' +
         '<div class="ntc-avatar"></div>' +
         '<div class="ntc-hd-text"><div class="ntc-name"></div><div class="ntc-status"></div></div>' +
-        '<button class="ntc-menu">⋯</button>' +
+        '<div class="ntc-menu-wrap" style="position:relative;margin-inline-start:auto;">' +
+          '<button class="ntc-menu">⋯</button>' +
+        '</div>' +
       '</div>' +
       '<div class="ntc-list"></div>' +
       '<div class="ntc-footer">' +
@@ -3968,14 +4007,15 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     els.attachGroup = wrap.querySelector(".ntc-attach-group");
     els.back = wrap.querySelector(".ntc-back");
     els.menu = wrap.querySelector(".ntc-menu");
+    els.menuWrap = wrap.querySelector(".ntc-menu-wrap");
 
     els.field.placeholder = t().placeholder;
     els.name.textContent = partner ? partner.name : "";
 
     els.back.onclick = function () { hide(); forwardTo(".tc-chat-back"); };
-    els.menu.onclick = deleteConversation;
-    els.cam.onclick = function () { forwardTo('input[type="file"]'); };
-    els.mic.onclick = function () { forwardTo(".tc-icon-btn.recording, .tc-icon-btn"); };
+    els.menu.onclick = toggleMenu;
+    els.cam.onclick = function () { forwardTo(0); };   // camera is the first icon button
+    els.mic.onclick = function () { forwardTo(1); };   // mic is the second
     // Tapping the send button naturally steals focus from the field, which is what
     // dismisses the keyboard. Block that on press, and keep focus on the field.
     els.send.addEventListener("mousedown", function (e) { e.preventDefault(); });
@@ -3987,9 +4027,24 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     els.field.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
     });
+    var collapseTimer = null;
+    function setAttachCollapsed(on) {
+      clearTimeout(collapseTimer);
+      if (on) {
+        els.attachGroup.classList.add("collapsed");
+        // remove the space it took up only AFTER it's already invisible —
+        // so the field growing into that space is never seen mid-transition
+        collapseTimer = setTimeout(function () {
+          els.attachGroup.classList.add("collapsed-hard");
+        }, 110);
+      } else {
+        els.attachGroup.classList.remove("collapsed-hard");
+        els.attachGroup.classList.remove("collapsed");
+      }
+    }
     els.field.addEventListener("input", function () {
       autoGrow(); announceTyping();
-      els.attachGroup.classList.toggle("collapsed", els.field.value.trim().length > 0);
+      setAttachCollapsed(els.field.value.trim().length > 0);
     });
     els.field.addEventListener("focus", function () {
       // catch the keyboard's opening animation at a few points, same idea as layout()
@@ -4026,6 +4081,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     // after the other — this alone cuts the opening wait roughly in half.
     var results = await Promise.all([loadPeople(), loadInitialMessages()]);
     if (!results[0]) return;
+    applyClearedFilter();
 
     els.avatar.style.background = partner && partner.avatar_url ? "url(" + partner.avatar_url + ") center/cover" : "#A97CEC";
     els.name.textContent = partner ? partner.name : "";
@@ -4073,21 +4129,33 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
        this is what actually stops the old screen flashing before the new one
        takes over; waiting for JavaScript to react was always going to be a
        frame or two too late. */
-    ".tc-chat-screen-wrap{opacity:0 !important;pointer-events:none !important;}",
+    ".tc-chat-screen-wrap{visibility:hidden !important;pointer-events:none !important;}",
+    ".tc-chat-screen-wrap .tc-modal-overlay,",
+    ".tc-chat-screen-wrap .tc-modal-overlay *{visibility:visible !important;}",
+    ".tc-chat-screen-wrap .tc-modal-overlay{pointer-events:auto !important;z-index:900 !important;}",
     "#ntc-wrap{position:fixed;left:0;right:0;top:0;z-index:500;display:none;flex-direction:column;",
     "background:radial-gradient(ellipse at 50% -10%,#2f1d52 0%,#1c1338 45%,#150e28 75%,#100b20 100%);",
     "font-family:-apple-system,sans-serif;width:100%;max-width:100vw;",
     "overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y;}",
-    ".ntc-header{flex:0 0 auto;display:flex;align-items:center;gap:10px;position:relative;z-index:1;",
-    "padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:transparent;}",
+    ".ntc-header{flex:0 0 auto;display:flex;align-items:center;gap:11px;position:relative;z-index:1;",
+    "padding:calc(13px + env(safe-area-inset-top)) 14px 13px;background:transparent;}",
     ".ntc-back{background:rgba(255,255,255,.08);border:none;color:#F4EEFF;width:34px;height:34px;",
     "border-radius:50%;font-size:16px;flex:none;}",
-    ".ntc-avatar{width:36px;height:36px;border-radius:50%;background:#A97CEC;flex:none;}",
+    ".ntc-avatar{width:40px;height:40px;border-radius:50%;background:#A97CEC;flex:none;}",
     ".ntc-hd-text{flex:1;min-width:0;}",
-    ".ntc-name{font-size:15px;font-weight:700;color:#F4EEFF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+    ".ntc-name{font-size:15.5px;font-weight:700;color:#F4EEFF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
     ".ntc-status{font-size:11px;color:#A97CEC;}",
-    ".ntc-menu{background:rgba(255,255,255,.08);border:none;color:#F4EEFF;width:34px;height:34px;",
-    "border-radius:50%;font-size:16px;flex:none;}",
+    ".ntc-menu{background:none;border:none;color:#CFC2E8;font-size:20px;flex:none;",
+    "padding:4px 8px;line-height:1;}",
+    ".ntc-menu-drop{position:absolute;top:100%;right:14px;margin-top:6px;min-width:190px;",
+    "background:#2a1b4d;border:1px solid rgba(255,255,255,.2);border-radius:14px;overflow:hidden;",
+    "box-shadow:0 12px 32px rgba(0,0,0,.6);z-index:20;",
+    "animation:ntcMenuIn 120ms cubic-bezier(.2,.9,.3,1.2);}",
+    "@keyframes ntcMenuIn{from{opacity:0;transform:scale(.9) translateY(-6px)}to{opacity:1;transform:none}}",
+    ".ntc-menu-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;",
+    "background:none;border:none;padding:13px 16px;font-size:13.5px;font-weight:500;",
+    "color:#ff6b6b;cursor:pointer;}",
+    ".ntc-menu-backdrop{position:fixed;inset:0;z-index:15;}",
     ".ntc-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;",
     "overscroll-behavior:contain;overscroll-behavior-x:none;touch-action:pan-y;",
     "width:100%;max-width:100%;box-sizing:border-box;padding:12px 10px;}",
@@ -4126,9 +4194,11 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "background:rgba(255,255,255,.1);color:#CFC2E8;font-size:11px;}",
     ".ntc-footer{flex:0 0 auto;display:flex;align-items:flex-end;gap:6px;position:relative;z-index:1;",
     "padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:#171224;}",
-    ".ntc-attach-group{display:flex;align-items:center;gap:2px;flex:0 0 auto;",
-    "max-width:80px;overflow:hidden;transition:max-width 160ms ease,opacity 120ms ease;}",
-    ".ntc-attach-group.collapsed{max-width:0;opacity:0;pointer-events:none;}",
+    ".ntc-attach-group{display:flex;align-items:center;gap:2px;flex:0 0 auto;width:80px;",
+    "transform:scale(1);opacity:1;transform-origin:right center;",
+    "transition:transform 110ms ease,opacity 90ms ease;}",
+    ".ntc-attach-group.collapsed{transform:scale(.7);opacity:0;pointer-events:none;}",
+    ".ntc-attach-group.collapsed-hard{width:0;margin:0;}",
     ".ntc-cam,.ntc-mic{background:none;border:none;color:#CFC2E8;flex:none;padding:7px;",
     "display:flex;align-items:center;justify-content:center;}",
     ".ntc-field{flex:1;min-width:0;max-height:120px;background:#221B36;border:none;",
