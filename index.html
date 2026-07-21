@@ -3906,7 +3906,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     els.menu.onclick = deleteConversation;
     els.cam.onclick = function () { forwardTo('input[type="file"]'); };
     els.mic.onclick = function () { forwardTo(".tc-icon-btn.recording, .tc-icon-btn"); };
-    els.send.onclick = sendText;
+    // Tapping the send button naturally steals focus from the field, which is what
+    // dismisses the keyboard. Block that on press, and keep focus on the field.
+    els.send.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    els.send.addEventListener("pointerdown", function (e) { e.preventDefault(); });
+    els.send.onclick = function () {
+      sendText();
+      els.field.focus();
+    };
     els.field.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
     });
