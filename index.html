@@ -3593,17 +3593,23 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }
 
   // ── typing indicator ───────────────────────────────────────────────
-  var typingTimer = null;
+  var typingTimer = null, lastTypingPing = 0;
   function announceTyping() {
     var id = myId();
     if (!id) return;
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(stopTyping, 2500);
+    // Only the network call is throttled — every keystroke still resets the
+    // "stop typing" timer above, so the indicator stays accurate on the other
+    // side, it just doesn't hit the network on every single character.
+    var now = Date.now();
+    if (now - lastTypingPing < 1500) return;
+    lastTypingPing = now;
     fetch(SB_URL + "/rest/v1/presence?on_conflict=account_id", {
       method: "POST",
       headers: Object.assign({ Prefer: "resolution=merge-duplicates,return=minimal" }, HJ),
       body: JSON.stringify({ account_id: id, is_typing: true, typing_updated_at: new Date().toISOString() }),
     }).catch(function () {});
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(stopTyping, 2500);
   }
   function stopTyping() {
     var id = myId();
@@ -4115,6 +4121,11 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (isOpen && !wasOpen) show();
     else if (!isOpen && wasOpen) hide();
     wasOpen = isOpen;
+
+    // Step aside for the native photo-confirm popup specifically — its own
+    // "position:absolute" layout only works reliably against a visible ancestor.
+    var nativeModalOpen = !!(wrap && wrap.querySelector(".tc-modal-overlay"));
+    document.documentElement.classList.toggle("ntc-yield-to-native", nativeModalOpen);
   }
   var mo = new MutationObserver(function () {
     if (mo._t) clearTimeout(mo._t);
@@ -4135,9 +4146,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
        takes over; waiting for JavaScript to react was always going to be a
        frame or two too late. */
     ".tc-chat-screen-wrap{visibility:hidden !important;pointer-events:none !important;}",
-    ".tc-chat-screen-wrap .tc-modal-overlay,",
-    ".tc-chat-screen-wrap .tc-modal-overlay *{visibility:visible !important;}",
-    ".tc-chat-screen-wrap .tc-modal-overlay{pointer-events:auto !important;z-index:900 !important;}",
+    ".ntc-yield-to-native .tc-chat-screen-wrap{visibility:visible !important;pointer-events:auto !important;}",
+    ".ntc-yield-to-native #ntc-wrap{display:none !important;}",
     "#ntc-wrap{position:fixed;left:0;right:0;top:0;z-index:500;display:none;flex-direction:column;",
     "background:radial-gradient(ellipse at 50% -10%,#2f1d52 0%,#1c1338 45%,#150e28 75%,#100b20 100%);",
     "font-family:-apple-system,sans-serif;width:100%;max-width:100vw;",
