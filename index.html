@@ -3860,7 +3860,12 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }
 
   // ── photo / mic: delegate to the still-mounted (hidden) native chat ──
-  function forwardTo(index) {
+  function forwardTo(selector) {
+    if (!nativeWrap) return;
+    var el = nativeWrap.querySelector(selector);
+    if (el) el.click();
+  }
+  function forwardToIcon(index) {
     if (!nativeWrap) return;
     var buttons = nativeWrap.querySelectorAll(".tc-icon-btn");
     var el = buttons[index];
@@ -4014,8 +4019,8 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
     els.back.onclick = function () { hide(); forwardTo(".tc-chat-back"); };
     els.menu.onclick = toggleMenu;
-    els.cam.onclick = function () { forwardTo(0); };   // camera is the first icon button
-    els.mic.onclick = function () { forwardTo(1); };   // mic is the second
+    els.cam.onclick = function () { forwardToIcon(0); };   // camera is the first icon button
+    els.mic.onclick = function () { forwardToIcon(1); };   // mic is the second
     // Tapping the send button naturally steals focus from the field, which is what
     // dismisses the keyboard. Block that on press, and keep focus on the field.
     els.send.addEventListener("mousedown", function (e) { e.preventDefault(); });
@@ -4027,21 +4032,6 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     els.field.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
     });
-    var collapseTimer = null;
-    function setAttachCollapsed(on) {
-      clearTimeout(collapseTimer);
-      if (on) {
-        els.attachGroup.classList.add("collapsed");
-        // remove the space it took up only AFTER it's already invisible —
-        // so the field growing into that space is never seen mid-transition
-        collapseTimer = setTimeout(function () {
-          els.attachGroup.classList.add("collapsed-hard");
-        }, 110);
-      } else {
-        els.attachGroup.classList.remove("collapsed-hard");
-        els.attachGroup.classList.remove("collapsed");
-      }
-    }
     els.field.addEventListener("input", function () {
       autoGrow(); announceTyping();
       setAttachCollapsed(els.field.value.trim().length > 0);
@@ -4064,6 +4054,21 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   function autoGrow() {
     els.field.style.height = "auto";
     els.field.style.height = Math.min(els.field.scrollHeight, 120) + "px";
+  }
+
+  var collapseTimer = null;
+  function setAttachCollapsed(on) {
+    if (!els.attachGroup) return;
+    clearTimeout(collapseTimer);
+    if (on) {
+      els.attachGroup.classList.add("collapsed");
+      collapseTimer = setTimeout(function () {
+        els.attachGroup.classList.add("collapsed-hard");
+      }, 110);
+    } else {
+      els.attachGroup.classList.remove("collapsed-hard");
+      els.attachGroup.classList.remove("collapsed");
+    }
   }
 
   // ── show / hide, wired to the native chat's own open/close ─────────
