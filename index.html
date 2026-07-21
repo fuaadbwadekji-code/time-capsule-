@@ -3453,11 +3453,13 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     fr: { placeholder: "Écrivez un message…", online: "En ligne", typing: "en train d'écrire…",
           offline: "Hors ligne", reply: "Réponse à", cancel: "Annuler", you: "Vous",
           delete: "Supprimer la conversation",
-          confirmDelete: "Supprimer cette conversation pour vous deux ? Action irréversible." },
+          confirmDelete: "Supprimer cette conversation pour vous deux ? Action irréversible.",
+          cropHint: "Faites glisser · pincez pour zoomer" },
     tr: { placeholder: "Bir mesaj yazın…", online: "Çevrimiçi", typing: "yazıyor…",
           offline: "Çevrimdışı", reply: "Yanıt", cancel: "İptal", you: "Sen",
           delete: "Sohbeti sil",
-          confirmDelete: "Bu sohbet ikiniz için de silinsin mi? Geri alınamaz." }
+          confirmDelete: "Bu sohbet ikiniz için de silinsin mi? Geri alınamaz.",
+          cropHint: "Sürükleyin · yakınlaştırmak için sıkıştırın" }
   };
   function lang() { return window.__tcLang === "tr" ? "tr" : "fr"; }
   function t() { return L[lang()]; }
@@ -3900,11 +3902,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   var photoModalEl = null;
   function openPhotoPreview(file) {
     var url = URL.createObjectURL(file);
+    var st = { zoom: 1, x: 50, y: 50 };
+
     var back = document.createElement("div");
     back.className = "ntc-photo-modal";
     back.innerHTML =
       '<div class="ntc-photo-sheet">' +
-        '<img src="' + url + '" alt="" />' +
+        '<div class="ntc-photo-stage"><div class="ntc-photo-img"></div></div>' +
+        '<div class="ntc-photo-hint">' + esc(t().cropHint) + '</div>' +
         '<div class="ntc-photo-actions">' +
           '<button class="ntc-photo-cancel">' + esc(t().cancel) + '</button>' +
           '<button class="ntc-photo-send">➤</button>' +
@@ -3912,6 +3917,47 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       '</div>';
     document.body.appendChild(back);
     photoModalEl = back;
+
+    var stage = back.querySelector(".ntc-photo-stage");
+    var img = back.querySelector(".ntc-photo-img");
+    function paint() {
+      img.style.backgroundImage = "url(" + url + ")";
+      img.style.backgroundSize = (st.zoom * 100) + "%";
+      img.style.backgroundPosition = st.x + "% " + st.y + "%";
+    }
+    paint();
+
+    // drag to reposition, pinch to zoom — same idea as the profile-photo cropper
+    var ptrs = new Map(), drag = null, pinch = null;
+    function dist() {
+      var a = Array.from(ptrs.values());
+      return a.length < 2 ? 0 : Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+    }
+    stage.addEventListener("pointerdown", function (e) {
+      stage.setPointerCapture && stage.setPointerCapture(e.pointerId);
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 1) drag = { x: e.clientX, y: e.clientY };
+      else if (ptrs.size === 2) { pinch = { d: dist(), z: st.zoom }; drag = null; }
+    });
+    stage.addEventListener("pointermove", function (e) {
+      if (!ptrs.has(e.pointerId)) return;
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size >= 2 && pinch) {
+        var nd = dist();
+        if (nd > 0 && pinch.d > 0) { st.zoom = Math.min(4, Math.max(1, pinch.z * (nd / pinch.d))); paint(); }
+        return;
+      }
+      if (drag) {
+        var r = stage.getBoundingClientRect();
+        st.x = Math.min(100, Math.max(0, st.x - ((e.clientX - drag.x) / r.width) * 100));
+        st.y = Math.min(100, Math.max(0, st.y - ((e.clientY - drag.y) / r.height) * 100));
+        drag = { x: e.clientX, y: e.clientY };
+        paint();
+      }
+    });
+    function up(e) { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) drag = null; }
+    stage.addEventListener("pointerup", up);
+    stage.addEventListener("pointercancel", up);
 
     back.querySelector(".ntc-photo-cancel").onclick = function () {
       URL.revokeObjectURL(url);
@@ -3923,11 +3969,24 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       btn.disabled = true;
       btn.textContent = "…";
       try {
+        // bake the crop (zoom + position) into a real image before uploading
+        var image = new Image();
+        await new Promise(function (res, rej) { image.onload = res; image.onerror = rej; image.src = url; });
+        var SIZE = 1400;
+        var cv = document.createElement("canvas");
+        cv.width = SIZE; cv.height = SIZE;
+        var cx = cv.getContext("2d");
+        var scale = Math.max(SIZE / image.width, SIZE / image.height) * st.zoom;
+        var dw = image.width * scale, dh = image.height * scale;
+        cx.fillStyle = "#000"; cx.fillRect(0, 0, SIZE, SIZE);
+        cx.drawImage(image, (SIZE - dw) * (st.x / 100), (SIZE - dh) * (st.y / 100), dw, dh);
+        var blob = await new Promise(function (res) { cv.toBlob(res, "image/jpeg", 0.9); });
+
         var path = "messages/" + me.id + "-" + Date.now() + ".jpg";
         var upRes = await fetch(SB_URL + "/storage/v1/object/" + BUCKET + "/" + path, {
           method: "POST",
-          headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": file.type || "image/jpeg" },
-          body: file,
+          headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": "image/jpeg" },
+          body: blob,
         });
         if (!upRes.ok) throw new Error("upload failed: " + upRes.status);
         var publicUrl = SB_URL + "/storage/v1/object/public/" + BUCKET + "/" + path;
@@ -4138,8 +4197,13 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }
 
   function autoGrow() {
-    els.field.style.height = "auto";
-    els.field.style.height = Math.min(els.field.scrollHeight, 120) + "px";
+    var field = els.field;
+    field.style.transition = "none";
+    field.style.height = "auto";
+    var next = Math.min(field.scrollHeight, 120) + "px";
+    void field.offsetHeight;               // force the browser to register "auto" first
+    field.style.transition = "";
+    requestAnimationFrame(function () { field.style.height = next; });
   }
 
   function setAttachCollapsed(on) {
@@ -4246,8 +4310,10 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "width:100%;max-width:100%;box-sizing:border-box;padding:12px 10px;}",
     ".ntc-row{display:flex;margin-bottom:6px;}",
     ".ntc-row.me{justify-content:flex-end;}",
-    ".ntc-row.ntc-new{animation:ntcRowIn 150ms cubic-bezier(.2,.8,.3,1) both;}",
-    "@keyframes ntcRowIn{from{opacity:0;transform:translateY(5px) scale(.96)}to{opacity:1;transform:none}}",
+    ".ntc-row.ntc-new .ntc-bubble{animation:ntcRowIn 190ms cubic-bezier(.16,.8,.24,1) both;}",
+    ".ntc-row.ntc-new.me .ntc-bubble{transform-origin:bottom right;}",
+    ".ntc-row.ntc-new.them .ntc-bubble{transform-origin:bottom left;}",
+    "@keyframes ntcRowIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}",
     ".ntc-bubble{position:relative;max-width:78%;padding:8px 12px;border-radius:8px;",
     "font-size:14.4px;line-height:1.5;color:#F4EEFF;word-break:break-word;}",
     ".ntc-bubble.them{background:#1E1830;border-top-left-radius:2px;}",
@@ -4296,8 +4362,10 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "@keyframes ntcPhotoIn{from{opacity:0}to{opacity:1}}",
     ".ntc-photo-sheet{width:100%;max-width:340px;background:#171224;border-radius:20px;",
     "padding:14px;box-sizing:border-box;box-shadow:0 20px 50px rgba(0,0,0,.6);}",
-    ".ntc-photo-sheet img{width:100%;max-height:60vh;object-fit:contain;border-radius:12px;",
-    "display:block;background:#000;}",
+    ".ntc-photo-stage{position:relative;width:100%;aspect-ratio:1;border-radius:14px;",
+    "overflow:hidden;background:#000;touch-action:none;}",
+    ".ntc-photo-img{position:absolute;inset:0;background-repeat:no-repeat;}",
+    ".ntc-photo-hint{text-align:center;font-size:11.5px;color:#8E86A6;margin-top:10px;}",
     ".ntc-photo-actions{display:flex;gap:10px;margin-top:14px;}",
     ".ntc-photo-cancel{flex:1;background:rgba(255,255,255,.08);border:none;",
     "color:#F4EEFF;border-radius:14px;padding:12px;font-size:14px;}",
