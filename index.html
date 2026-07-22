@@ -3611,6 +3611,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         if (local && local.reaction === row.reaction) return;
         if (local) local.reaction = row.reaction;
         var bubble = els.list.querySelector('[data-mid="' + row.id + '"] .ntc-bubble');
+        var rowEl = els.list.querySelector('[data-mid="' + row.id + '"]');
         if (!bubble) return;
         var existing = bubble.querySelector(".ntc-reaction");
         if (existing && existing.textContent === row.reaction) return;
@@ -3619,6 +3620,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         badge.className = "ntc-reaction";
         badge.textContent = row.reaction;
         bubble.appendChild(badge);
+        if (rowEl) rowEl.classList.add("has-reaction");
         if (badge.animate) {
           badge.animate(
             [{ opacity: 0, transform: "scale(0.3)" }, { opacity: 1, transform: "scale(1)" }],
@@ -3631,8 +3633,10 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         if (m.reaction && !seenIds[m.id]) {
           m.reaction = null;
           var bubble = els.list.querySelector('[data-mid="' + m.id + '"] .ntc-bubble');
+          var rowEl = els.list.querySelector('[data-mid="' + m.id + '"]');
           var existing = bubble && bubble.querySelector(".ntc-reaction");
           if (existing) existing.remove();
+          if (rowEl) rowEl.classList.remove("has-reaction");
         }
       });
     } catch (e) {}
@@ -3761,7 +3765,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       : "";
 
     return (
-      '<div class="ntc-row ' + (mine ? "me" : "them") + '" data-mid="' + m.id + '">' +
+      '<div class="ntc-row ' + (mine ? "me" : "them") + (m.reaction ? " has-reaction" : "") + '" data-mid="' + m.id + '">' +
         '<div class="ntc-bubble ' + (mine ? "me" : "them") + '">' +
           quote +
           '<div class="ntc-content">' +
@@ -3917,21 +3921,25 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var next = (m && m.reaction === emoji) ? null : emoji;   // tap the same one again to remove it
     if (m) m.reaction = next;
 
-    var row = els.list.querySelector('[data-mid="' + messageId + '"] .ntc-bubble');
-    if (row) {
-      var existing = row.querySelector(".ntc-reaction");
+    var bubbleEl = els.list.querySelector('[data-mid="' + messageId + '"] .ntc-bubble');
+    var rowEl = els.list.querySelector('[data-mid="' + messageId + '"]');
+    if (bubbleEl) {
+      var existing = bubbleEl.querySelector(".ntc-reaction");
       if (existing) existing.remove();
       if (next) {
         var badge = document.createElement("div");
         badge.className = "ntc-reaction";
         badge.textContent = next;
-        row.appendChild(badge);
+        bubbleEl.appendChild(badge);
+        if (rowEl) rowEl.classList.add("has-reaction");
         if (badge.animate) {
           badge.animate(
             [{ opacity: 0, transform: "scale(0.3)" }, { opacity: 1, transform: "scale(1)" }],
             { duration: 260, easing: "cubic-bezier(.2,.9,.3,1.2)", fill: "both" }
           );
         }
+      } else if (rowEl) {
+        rowEl.classList.remove("has-reaction");
       }
     }
 
@@ -4507,6 +4515,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "overscroll-behavior:contain;overscroll-behavior-x:none;touch-action:pan-y;",
     "width:100%;max-width:100%;box-sizing:border-box;padding:12px 10px;}",
     ".ntc-row{display:flex;margin-bottom:6px;}",
+    ".ntc-row.has-reaction{margin-bottom:18px;}",
     ".ntc-row.me{justify-content:flex-end;}",
     ".ntc-bubble{will-change:transform,opacity;}",
     ".ntc-row.me .ntc-bubble{transform-origin:bottom right;}",
@@ -4656,18 +4665,38 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     requestAnimationFrame(function () { field.style.height = next; });
   }
 
+  var typingBubbleEl = null;
+  function showTypingBubble() {
+    if (typingBubbleEl) return;
+    var row = document.createElement("div");
+    row.className = "ntc-row them";
+    row.innerHTML = '<div class="ntc-bubble them ntc-typing"><span></span><span></span><span></span></div>';
+    els.list.appendChild(row);
+    typingBubbleEl = row;
+    if (isNearBottom()) els.list.scrollTop = els.list.scrollHeight;
+  }
+  function hideTypingBubble() {
+    if (typingBubbleEl) { typingBubbleEl.remove(); typingBubbleEl = null; }
+  }
+
   function send() {
     var text = els.field.value.trim();
     if (!text) return;
     els.field.value = "";
     autoGrow();
     addMessage(text, true);
-    // a friendly canned reply after a short beat, purely to test the "them" bubble too
+    // "typing…" first, then a friendly canned reply — so the typing bubble itself
+    // can be previewed here too, exactly like the real chat.
     clearTimeout(replyTimer);
+    hideTypingBubble();
     replyTimer = setTimeout(function () {
-      var replies = ["تمام 👍", "حلو كتير", "وأنا كمان 💜", "هه صح", "تمام تمام"];
-      addMessage(replies[Math.floor(Math.random() * replies.length)], false);
-    }, 900);
+      showTypingBubble();
+      replyTimer = setTimeout(function () {
+        hideTypingBubble();
+        var replies = ["تمام 👍", "حلو كتير", "وأنا كمان 💜", "هه صح", "تمام تمام"];
+        addMessage(replies[Math.floor(Math.random() * replies.length)], false);
+      }, 1150);
+    }, 350);
   }
 
   function close() {
