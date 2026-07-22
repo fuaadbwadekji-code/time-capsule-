@@ -4402,10 +4402,18 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   function autoGrow() {
     var field = els.field;
+    // Most keystrokes don't change how many lines the field needs — only do the
+    // (relatively costly) resize dance when the height actually has to change,
+    // instead of on every single character typed.
+    var current = field.style.height;
+    var neededNow = Math.min(field.scrollHeight, 120);
+    if (current && parseInt(current, 10) >= neededNow && field.scrollHeight <= field.clientHeight + 1) {
+      return;   // still fits at the current height — nothing to animate
+    }
     field.style.transition = "none";
     field.style.height = "auto";
     var next = Math.min(field.scrollHeight, 120) + "px";
-    void field.offsetHeight;               // force the browser to register "auto" first
+    void field.offsetHeight;
     field.style.transition = "";
     requestAnimationFrame(function () { field.style.height = next; });
   }
@@ -4659,6 +4667,11 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   function autoGrow() {
     var field = els.field;
+    var current = field.style.height;
+    var neededNow = Math.min(field.scrollHeight, 120);
+    if (current && parseInt(current, 10) >= neededNow && field.scrollHeight <= field.clientHeight + 1) {
+      return;
+    }
     field.style.transition = "none";
     field.style.height = "auto";
     var next = Math.min(field.scrollHeight, 120) + "px";
