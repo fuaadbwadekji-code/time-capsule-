@@ -3460,12 +3460,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
           offline: "Hors ligne", reply: "Réponse à", cancel: "Annuler", you: "Vous",
           delete: "Supprimer la conversation",
           confirmDelete: "Supprimer cette conversation pour vous deux ? Action irréversible.",
-          cropHint: "Faites glisser · pincez pour zoomer" },
+          cropHint: "Faites glisser · pincez pour zoomer",
+          lastSeen: function (time) { return "Vu à " + time; } },
     tr: { placeholder: "Bir mesaj yazın…", online: "Çevrimiçi", typing: "yazıyor…",
           offline: "Çevrimdışı", reply: "Yanıt", cancel: "İptal", you: "Sen",
           delete: "Sohbeti sil",
           confirmDelete: "Bu sohbet ikiniz için de silinsin mi? Geri alınamaz.",
-          cropHint: "Sürükleyin · yakınlaştırmak için sıkıştırın" }
+          cropHint: "Sürükleyin · yakınlaştırmak için sıkıştırın",
+          lastSeen: function (time) { return "Son görülme " + time; } }
   };
   function lang() { return window.__tcLang === "tr" ? "tr" : "fr"; }
   function t() { return L[lang()]; }
@@ -3551,6 +3553,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       if (!Array.isArray(rows) || !rows.length) {
         // still check for read-receipt updates on my own recent messages
         pollReadUpdates();
+      pollReactionUpdates();
         return;
       }
       rows.forEach(function (m) {
@@ -3559,6 +3562,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       lastCreatedAt = rows[rows.length - 1].created_at;
       renderNew(rows);
       pollReadUpdates();
+      pollReactionUpdates();
     } catch (e) {}
   }
 
@@ -3583,6 +3587,53 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         }
         var local = messages.find(function (m) { return m.id === row.id; });
         if (local) local.read_at = row.read_at;
+      });
+    } catch (e) {}
+  }
+
+  // Reactions can come from either side, so keep the recent messages' reaction
+  // state in sync too — same lightweight pattern as the read-receipt check.
+  async function pollReactionUpdates() {
+    var id = myId();
+    if (!id) return;
+    try {
+      var r = await fetch(
+        SB_URL + "/rest/v1/messages?or=(sender_id.eq." + id + ",recipient_id.eq." + id +
+        ")&reaction=not.is.null&select=id,reaction&order=created_at.desc&limit=30",
+        { headers: H }
+      );
+      var rows = await r.json();
+      if (!Array.isArray(rows)) return;
+      var seenIds = {};
+      rows.forEach(function (row) {
+        seenIds[row.id] = true;
+        var local = messages.find(function (m) { return m.id === row.id; });
+        if (local && local.reaction === row.reaction) return;
+        if (local) local.reaction = row.reaction;
+        var bubble = els.list.querySelector('[data-mid="' + row.id + '"] .ntc-bubble');
+        if (!bubble) return;
+        var existing = bubble.querySelector(".ntc-reaction");
+        if (existing && existing.textContent === row.reaction) return;
+        if (existing) existing.remove();
+        var badge = document.createElement("div");
+        badge.className = "ntc-reaction";
+        badge.textContent = row.reaction;
+        bubble.appendChild(badge);
+        if (badge.animate) {
+          badge.animate(
+            [{ opacity: 0, transform: "scale(0.3)" }, { opacity: 1, transform: "scale(1)" }],
+            { duration: 260, easing: "cubic-bezier(.2,.9,.3,1.2)", fill: "both" }
+          );
+        }
+      });
+      // a reaction that got removed elsewhere should disappear here too
+      messages.forEach(function (m) {
+        if (m.reaction && !seenIds[m.id]) {
+          m.reaction = null;
+          var bubble = els.list.querySelector('[data-mid="' + m.id + '"] .ntc-bubble');
+          var existing = bubble && bubble.querySelector(".ntc-reaction");
+          if (existing) existing.remove();
+        }
       });
     } catch (e) {}
   }
@@ -3635,6 +3686,33 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     var fresh = !!(p && p.is_typing && p.typing_updated_at &&
       (Date.now() - new Date(p.typing_updated_at).getTime() < 6000));
     setTypingBubble(fresh);
+    updateStatusLine(p, fresh);
+  }
+
+  // "typing…" beats "online", which beats "last seen at HH:MM" — matches the app's
+  // own presence data exactly, so it's never wrong: the same heartbeat the rest of
+  // the app already writes every 30s while it's open.
+  function updateStatusLine(p, typingNow) {
+    if (!els.status) return;
+    var tt = t();
+    if (typingNow) {
+      els.status.textContent = tt.typing;
+      els.status.classList.add("online");
+      return;
+    }
+    var online = !!(p && p.is_online && p.last_seen &&
+      (Date.now() - new Date(p.last_seen).getTime() < 45000));
+    if (online) {
+      els.status.textContent = tt.online;
+      els.status.classList.add("online");
+    } else if (p && p.last_seen) {
+      var time = new Date(p.last_seen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      els.status.textContent = tt.lastSeen(time);
+      els.status.classList.remove("online");
+    } else {
+      els.status.textContent = "";
+      els.status.classList.remove("online");
+    }
   }
   function setTypingBubble(on) {
     if (on) {
@@ -3690,6 +3768,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
             (m.type === "text" ? '<span class="ntc-text">' + body + '</span>' : body) +
           '</div>' +
           '<div class="ntc-meta">' + tick + '<span class="ntc-time-txt">' + time + '</span></div>' +
+          (m.reaction ? '<div class="ntc-reaction" data-emoji="' + esc(m.reaction) + '">' + esc(m.reaction) + '</div>' : '') +
         '</div>' +
       '</div>'
     );
@@ -3730,6 +3809,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   }
 
   // ── reply gestures (lighter than before: only on rows, no global scans) ──
+  var lastTapRow = null, lastTapTime = 0;
   function hookRows() {
     var rows = els.list.querySelectorAll(".ntc-row:not([data-hooked])");
     rows.forEach(function (row) {
@@ -3757,10 +3837,21 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
       row.addEventListener("touchend", function (e) {
         clearTimeout(held); held = null;
         var dx = e.changedTouches[0].clientX - x0;
+        var dy = e.changedTouches[0].clientY - y0;
         row.style.transition = "transform 150ms ease";
         row.style.transform = "";
-        if (dragging && Math.abs(dx) > 44) startReply(row);
+        if (dragging && Math.abs(dx) > 44) { startReply(row); dragging = false; return; }
         dragging = false;
+        // A quick, still tap (not the reply swipe) counts toward a double-tap.
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+          var now = Date.now();
+          if (lastTapRow === row && now - lastTapTime < 320) {
+            lastTapRow = null;
+            openReactionPicker(row, e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+          } else {
+            lastTapRow = row; lastTapTime = now;
+          }
+        }
       }, { passive: true });
       row.addEventListener("touchcancel", function () {
         clearTimeout(held); held = null; dragging = false;
@@ -3781,6 +3872,76 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
         setTimeout(function () { b.style.boxShadow = ""; }, 700);
       });
     });
+  }
+
+  // ── double-tap a message to react with a heart or a laugh ───────────
+  var reactionPickerEl = null;
+  function closeReactionPicker() {
+    if (reactionPickerEl) { reactionPickerEl.remove(); reactionPickerEl = null; }
+  }
+  function openReactionPicker(row, x, y) {
+    closeReactionPicker();
+    var id = row.getAttribute("data-mid");
+    if (!id) return;
+
+    var pick = document.createElement("div");
+    pick.className = "ntc-react-picker";
+    pick.style.left = Math.max(12, Math.min(window.innerWidth - 90, x - 40)) + "px";
+    pick.style.top = Math.max(60, y - 56) + "px";
+    ["❤️", "😂"].forEach(function (emoji) {
+      var b = document.createElement("button");
+      b.textContent = emoji;
+      b.onclick = function (ev) {
+        ev.stopPropagation();
+        setReaction(id, emoji);
+        closeReactionPicker();
+      };
+      pick.appendChild(b);
+    });
+    document.body.appendChild(pick);
+    reactionPickerEl = pick;
+
+    if (pick.animate) {
+      pick.animate(
+        [{ opacity: 0, transform: "scale(0.7)" }, { opacity: 1, transform: "scale(1)" }],
+        { duration: 140, easing: "cubic-bezier(.2,.9,.3,1.1)", fill: "both" }
+      );
+    }
+    setTimeout(function () {
+      document.addEventListener("click", closeReactionPicker, { once: true });
+    }, 0);
+  }
+
+  async function setReaction(messageId, emoji) {
+    var m = messages.find(function (x) { return x.id === messageId; });
+    var next = (m && m.reaction === emoji) ? null : emoji;   // tap the same one again to remove it
+    if (m) m.reaction = next;
+
+    var row = els.list.querySelector('[data-mid="' + messageId + '"] .ntc-bubble');
+    if (row) {
+      var existing = row.querySelector(".ntc-reaction");
+      if (existing) existing.remove();
+      if (next) {
+        var badge = document.createElement("div");
+        badge.className = "ntc-reaction";
+        badge.textContent = next;
+        row.appendChild(badge);
+        if (badge.animate) {
+          badge.animate(
+            [{ opacity: 0, transform: "scale(0.3)" }, { opacity: 1, transform: "scale(1)" }],
+            { duration: 260, easing: "cubic-bezier(.2,.9,.3,1.2)", fill: "both" }
+          );
+        }
+      }
+    }
+
+    try {
+      await fetch(SB_URL + "/rest/v1/messages?id=eq." + messageId, {
+        method: "PATCH",
+        headers: Object.assign({ Prefer: "return=minimal" }, HJ),
+        body: JSON.stringify({ reaction: next, reaction_by: next ? me.id : null }),
+      });
+    } catch (e) {}
   }
 
   function startReply(row) {
@@ -3879,7 +4040,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
           { opacity: 0, transform: "scale(0.5)" },
           { opacity: 1, transform: "scale(1)" },
         ],
-        { duration: 220, easing: "cubic-bezier(.2,.9,.3,1.05)", fill: "both" }
+        { duration: 320, easing: "cubic-bezier(.2,.9,.3,1.05)", fill: "both" }
       );
     }
   }
@@ -4326,10 +4487,11 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "padding:calc(13px + env(safe-area-inset-top)) 14px 13px;background:transparent;}",
     ".ntc-back{background:rgba(255,255,255,.08);border:none;color:#F4EEFF;width:34px;height:34px;",
     "border-radius:50%;font-size:16px;flex:none;}",
-    ".ntc-avatar{width:40px;height:40px;border-radius:50%;background:#A97CEC;flex:none;}",
+    ".ntc-avatar{width:40px;height:40px;border-radius:12px;background:#A97CEC;flex:none;}",
     ".ntc-hd-text{flex:1;min-width:0;}",
     ".ntc-name{font-size:15.5px;font-weight:700;color:#F4EEFF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
-    ".ntc-status{font-size:11px;color:#A97CEC;}",
+    ".ntc-status{font-size:11px;color:#8E86A6;}",
+    ".ntc-status.online{color:#A97CEC;}",
     ".ntc-menu{background:none;border:none;color:#CFC2E8;font-size:20px;flex:none;",
     "padding:4px 8px;line-height:1;}",
     ".ntc-menu-drop{position:absolute;top:100%;right:14px;margin-top:6px;min-width:190px;",
@@ -4407,6 +4569,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     ".ntc-photo-send{width:48px;height:48px;border-radius:50%;border:none;flex:none;",
     "background:linear-gradient(135deg,#A97CEC,#6A4BB0);color:#fff;font-size:16px;",
     "display:flex;align-items:center;justify-content:center;margin-left:auto;}",
+    ".ntc-reaction{position:absolute;bottom:-9px;right:10px;font-size:15px;line-height:1;",
+    "background:#171224;border-radius:999px;padding:2px 5px;box-shadow:0 2px 6px rgba(0,0,0,.4);}",
+    ".ntc-row.them .ntc-reaction{right:auto;left:10px;}",
+    ".ntc-react-picker{position:fixed;z-index:960;display:flex;gap:4px;background:#2a1b4d;",
+    "border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 8px;",
+    "box-shadow:0 10px 26px rgba(0,0,0,.55);}",
+    ".ntc-react-picker button{background:none;border:none;font-size:22px;padding:2px 5px;",
+    "line-height:1;}",
     ".ntc-loading{text-align:center;padding:24px;color:#8E86A6;font-size:20px;letter-spacing:4px;}",
     /* the animated starfield, sitting behind the messages so it never affects layout */
     "#ntc-stars{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0;}",
@@ -4456,7 +4626,7 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
           { opacity: 0, transform: "scale(0.5)" },
           { opacity: 1, transform: "scale(1)" },
         ],
-        { duration: 220, easing: "cubic-bezier(.2,.9,.3,1.05)", fill: "both" }
+        { duration: 320, easing: "cubic-bezier(.2,.9,.3,1.05)", fill: "both" }
       );
     }
   }
