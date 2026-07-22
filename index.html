@@ -3870,21 +3870,18 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   function popIn(node) {
     var bubble = node.querySelector(".ntc-bubble");
     if (!bubble) return;
-    bubble.style.transition = "none";
-    bubble.style.opacity = "0";
-    bubble.style.transform = "scale(.55)";
-    // A single requestAnimationFrame is not always enough — the browser can still
-    // batch the "small" state and the "full size" state into the very same paint,
-    // skipping the animation entirely. Two nested frames guarantees a real paint
-    // happens in between, so the transition is never silently skipped.
-    requestAnimationFrame(function () {
-      void bubble.offsetHeight;
-      requestAnimationFrame(function () {
-        bubble.style.transition = "transform 180ms cubic-bezier(.2,.9,.3,1.05), opacity 130ms ease";
-        bubble.style.opacity = "1";
-        bubble.style.transform = "scale(1)";
-      });
-    });
+    // Driven directly by JS via the Web Animations API instead of toggling CSS
+    // transition/transform properties — this can't be silently collapsed by any
+    // stray "reduce motion" rule or a missed paint frame elsewhere on the page.
+    if (bubble.animate) {
+      bubble.animate(
+        [
+          { opacity: 0, transform: "scale(0.5)" },
+          { opacity: 1, transform: "scale(1)" },
+        ],
+        { duration: 220, easing: "cubic-bezier(.2,.9,.3,1.05)", fill: "both" }
+      );
+    }
   }
 
   function renderNewOptimistic(m) {
@@ -4453,17 +4450,15 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   function popIn(node) {
     var bubble = node.querySelector(".ntc-bubble");
     if (!bubble) return;
-    bubble.style.transition = "none";
-    bubble.style.opacity = "0";
-    bubble.style.transform = "scale(.55)";
-    requestAnimationFrame(function () {
-      void bubble.offsetHeight;
-      requestAnimationFrame(function () {
-        bubble.style.transition = "transform 180ms cubic-bezier(.2,.9,.3,1.05), opacity 130ms ease";
-        bubble.style.opacity = "1";
-        bubble.style.transform = "scale(1)";
-      });
-    });
+    if (bubble.animate) {
+      bubble.animate(
+        [
+          { opacity: 0, transform: "scale(0.5)" },
+          { opacity: 1, transform: "scale(1)" },
+        ],
+        { duration: 220, easing: "cubic-bezier(.2,.9,.3,1.05)", fill: "both" }
+      );
+    }
   }
 
   function nowStr() { return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
