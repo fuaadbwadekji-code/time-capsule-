@@ -3867,11 +3867,17 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     bubble.style.transition = "none";
     bubble.style.opacity = "0";
     bubble.style.transform = "scale(.55)";
-    void bubble.offsetHeight;                 // force the browser to register the small state
+    // A single requestAnimationFrame is not always enough — the browser can still
+    // batch the "small" state and the "full size" state into the very same paint,
+    // skipping the animation entirely. Two nested frames guarantees a real paint
+    // happens in between, so the transition is never silently skipped.
     requestAnimationFrame(function () {
-      bubble.style.transition = "transform 180ms cubic-bezier(.2,.9,.3,1.05), opacity 130ms ease";
-      bubble.style.opacity = "1";
-      bubble.style.transform = "scale(1)";
+      void bubble.offsetHeight;
+      requestAnimationFrame(function () {
+        bubble.style.transition = "transform 180ms cubic-bezier(.2,.9,.3,1.05), opacity 130ms ease";
+        bubble.style.opacity = "1";
+        bubble.style.transform = "scale(1)";
+      });
     });
   }
 
@@ -4414,5 +4420,215 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 })();
 </script>
 
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   Local sandbox chat — entirely in-memory, no Supabase, no network at
+   all. A safe place to try animations/layout without touching the
+   real conversation. Reachable from Settings.
+   ═══════════════════════════════════════════════════════════════════ */
+(function () {
+  var sandboxMessages = [];
+  var els = {};
+  var replyTimer = null;
+
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+
+  function bubbleHTML(m) {
+    return (
+      '<div class="ntc-row ' + (m.mine ? "me" : "them") + '">' +
+        '<div class="ntc-bubble ' + (m.mine ? "me" : "them") + '">' +
+          '<div class="ntc-content"><span class="ntc-text">' + esc(m.text) + '</span></div>' +
+          '<div class="ntc-meta"><span class="ntc-time-txt">' + m.time + '</span></div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function popIn(node) {
+    var bubble = node.querySelector(".ntc-bubble");
+    if (!bubble) return;
+    bubble.style.transition = "none";
+    bubble.style.opacity = "0";
+    bubble.style.transform = "scale(.55)";
+    requestAnimationFrame(function () {
+      void bubble.offsetHeight;
+      requestAnimationFrame(function () {
+        bubble.style.transition = "transform 180ms cubic-bezier(.2,.9,.3,1.05), opacity 130ms ease";
+        bubble.style.opacity = "1";
+        bubble.style.transform = "scale(1)";
+      });
+    });
+  }
+
+  function nowStr() { return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  function isNearBottom() { var l = els.list; return l.scrollHeight - l.scrollTop - l.clientHeight < 80; }
+
+  function addMessage(text, mine) {
+    var m = { text: text, mine: mine, time: nowStr() };
+    sandboxMessages.push(m);
+    var wasBottom = isNearBottom();
+    var frag = document.createElement("div");
+    frag.innerHTML = bubbleHTML(m);
+    var node = frag.firstChild;
+    els.list.appendChild(node);
+    popIn(node);
+    if (wasBottom || mine) els.list.scrollTop = els.list.scrollHeight;
+  }
+
+  function autoGrow() {
+    var field = els.field;
+    field.style.transition = "none";
+    field.style.height = "auto";
+    var next = Math.min(field.scrollHeight, 120) + "px";
+    void field.offsetHeight;
+    field.style.transition = "";
+    requestAnimationFrame(function () { field.style.height = next; });
+  }
+
+  function send() {
+    var text = els.field.value.trim();
+    if (!text) return;
+    els.field.value = "";
+    autoGrow();
+    addMessage(text, true);
+    // a friendly canned reply after a short beat, purely to test the "them" bubble too
+    clearTimeout(replyTimer);
+    replyTimer = setTimeout(function () {
+      var replies = ["تمام 👍", "حلو كتير", "وأنا كمان 💜", "هه صح", "تمام تمام"];
+      addMessage(replies[Math.floor(Math.random() * replies.length)], false);
+    }, 900);
+  }
+
+  function close() {
+    document.getElementById("ntc-sandbox").remove();
+  }
+
+  function open() {
+    if (document.getElementById("ntc-sandbox")) return;
+    var wrap = document.createElement("div");
+    wrap.id = "ntc-sandbox";
+    wrap.innerHTML =
+      '<div class="ntc-header">' +
+        '<button class="ntc-back">←</button>' +
+        '<div class="ntc-avatar" style="background:#E0555A"></div>' +
+        '<div class="ntc-hd-text"><div class="ntc-name">تجربة محلية</div>' +
+        '<div class="ntc-status">بدون اتصال — للتجربة بس</div></div>' +
+      '</div>' +
+      '<div class="ntc-list"></div>' +
+      '<div class="ntc-footer">' +
+        '<textarea class="ntc-field" rows="1" placeholder="اكتبي شي هون..."></textarea>' +
+        '<button class="ntc-send">' +
+          '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 11.5L21 3l-8.5 18-2.2-7.3L3 11.5z"/></svg>' +
+        '</button>' +
+      '</div>';
+    document.body.appendChild(wrap);
+
+    els.wrap = wrap;
+    els.list = wrap.querySelector(".ntc-list");
+    els.field = wrap.querySelector(".ntc-field");
+    var sendBtn = wrap.querySelector(".ntc-send");
+    var backBtn = wrap.querySelector(".ntc-back");
+
+    backBtn.onclick = close;
+    sendBtn.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    sendBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); });
+    sendBtn.onclick = function () { send(); els.field.focus(); };
+    els.field.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+    els.field.addEventListener("input", autoGrow);
+
+    function layout() {
+      var vv = window.visualViewport;
+      wrap.style.top = (vv ? vv.offsetTop : 0) + "px";
+      wrap.style.height = (vv ? vv.height : window.innerHeight) + "px";
+      requestAnimationFrame(function () { els.list.scrollTop = els.list.scrollHeight; });
+    }
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", layout);
+    els.field.addEventListener("focus", function () {
+      [0, 30, 80, 160, 300].forEach(function (d) { setTimeout(layout, d); });
+    });
+    els.field.addEventListener("blur", function () {
+      [0, 60, 150, 300].forEach(function (d) { setTimeout(layout, d); });
+    });
+    layout();
+
+    if (!sandboxMessages.length) {
+      addMessage("هاد كلام تجريبي بس — ما بينحفظ ولا بيوصل لحدا 🙂", false);
+    } else {
+      sandboxMessages.forEach(function (m) {
+        var frag = document.createElement("div");
+        frag.innerHTML = bubbleHTML(m);
+        els.list.appendChild(frag.firstChild);
+      });
+      els.list.scrollTop = els.list.scrollHeight;
+    }
+  }
+
+  var style = document.createElement("style");
+  style.textContent = [
+    "#ntc-sandbox{position:fixed;left:0;right:0;top:0;z-index:700;display:flex;flex-direction:column;",
+    "background:radial-gradient(ellipse at 50% -10%,#2f1d52 0%,#1c1338 45%,#150e28 75%,#100b20 100%);",
+    "font-family:-apple-system,sans-serif;width:100%;max-width:100vw;overflow-x:hidden;",
+    "transition:top 130ms ease,height 130ms ease;}",
+    "#ntc-sandbox .ntc-header{flex:0 0 auto;display:flex;align-items:center;gap:11px;",
+    "padding:calc(13px + env(safe-area-inset-top)) 14px 13px;}",
+    "#ntc-sandbox .ntc-back{background:rgba(255,255,255,.08);border:none;color:#F4EEFF;",
+    "width:34px;height:34px;border-radius:50%;font-size:16px;flex:none;}",
+    "#ntc-sandbox .ntc-avatar{width:40px;height:40px;border-radius:50%;flex:none;}",
+    "#ntc-sandbox .ntc-name{font-size:15.5px;font-weight:700;color:#F4EEFF;}",
+    "#ntc-sandbox .ntc-status{font-size:11px;color:#E0555A;}",
+    "#ntc-sandbox .ntc-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 10px;}",
+    "#ntc-sandbox .ntc-footer{flex:0 0 auto;display:flex;align-items:flex-end;gap:8px;",
+    "padding:8px 10px calc(8px + env(safe-area-inset-bottom));}",
+    "#ntc-sandbox .ntc-field{flex:1;min-width:0;max-height:120px;background:#221B36;border:none;",
+    "border-radius:20px;color:#F4EEFF;font-size:15px;padding:10px 14px;resize:none;",
+    "font-family:inherit;line-height:1.4;transition:height 110ms ease;}",
+    "#ntc-sandbox .ntc-send{width:38px;height:38px;border-radius:50%;border:none;flex:none;",
+    "display:flex;align-items:center;justify-content:center;",
+    "background:linear-gradient(135deg,#A97CEC,#6A4BB0);color:#fff;}",
+  ].join("\n");
+  document.head.appendChild(style);
+
+  window.tcOpenSandbox = open;
+
+  // add a small entry point in Settings
+  function placeButton() {
+    if (document.getElementById("tc-sandbox-card")) return;
+    var fl = document.querySelector(".tc-font-list");
+    var screen = fl ? fl.closest(".tc-screen") : null;
+    if (!screen) return;
+    var card = document.createElement("div");
+    card.className = "tc-settings-card";
+    card.id = "tc-sandbox-card";
+    card.style.cssText = "display:flex;flex-direction:column;gap:8px";
+    var title = document.createElement("div");
+    title.className = "tc-set-section-title";
+    title.style.margin = "0";
+    title.textContent = "🧪 وضع التجربة";
+    var hint = document.createElement("div");
+    hint.style.cssText = "font-size:0.78em;line-height:1.45;opacity:.72";
+    hint.textContent = "محادثة محلية للتجربة فقط — ما بتتحفظ وما بتوصل لحدا.";
+    var btn = document.createElement("button");
+    btn.className = "tc-btn-secondary";
+    btn.textContent = "افتحي محادثة تجريبية";
+    btn.onclick = open;
+    card.appendChild(title); card.appendChild(hint); card.appendChild(btn);
+    var anchor = screen.querySelector(".tc-settings-card");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(card, anchor.nextSibling);
+    else screen.appendChild(card);
+  }
+  var mo = new MutationObserver(function () {
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(placeButton, 60);
+  });
+  function start() {
+    if (!document.body) return setTimeout(start, 50);
+    mo.observe(document.body, { childList: true, subtree: true });
+    placeButton();
+  }
+  window.addEventListener("load", start);
+})();
+</script>
 </body>
 </html>
