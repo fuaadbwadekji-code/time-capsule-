@@ -2488,9 +2488,15 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 }
 .tc-chat-inputbar { background: #170f2b !important; }
 
-/* Respect the system setting, and stop decorative motion during scroll. */
+/* Respect the system setting for decorative motion, but the chat bubble's own
+   grow-in is a small, purposeful state change (like a message-sent tick), not
+   decoration — so it's exempt, otherwise "reduce motion" made it disappear
+   completely rather than just play more gently. */
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  *:not(.ntc-bubble):not(.ntc-row):not(.ntc-field):not(.ntc-wrap):not(#ntc-wrap):not(#ntc-sandbox) {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
 }
 </style>
 <script>
