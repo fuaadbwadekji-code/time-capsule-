@@ -3711,11 +3711,14 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     if (!freshRows.length) { if (rows.some(function (m) { return m.recipient_id === (me && me.id); })) markRead(); return; }
     var frag = document.createElement("div");
     frag.innerHTML = freshRows.map(bubbleHTML).join("");
+    var newNodes = [];
     while (frag.firstChild) {
-      frag.firstChild.classList && frag.firstChild.classList.add("ntc-new");
-      els.list.appendChild(frag.firstChild);
+      var n = frag.firstChild;
+      els.list.appendChild(n);
+      newNodes.push(n);
     }
     hookRows();
+    newNodes.forEach(popIn);
     if (wasBottom) els.list.scrollTop = els.list.scrollHeight;
     if (freshRows.some(function (m) { return m.recipient_id === (me && me.id); })) markRead();
   }
@@ -3858,13 +3861,27 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     } catch (e) {}
   }
 
+  function popIn(node) {
+    var bubble = node.querySelector(".ntc-bubble");
+    if (!bubble) return;
+    bubble.style.transition = "none";
+    bubble.style.opacity = "0";
+    bubble.style.transform = "scale(.55)";
+    void bubble.offsetHeight;                 // force the browser to register the small state
+    requestAnimationFrame(function () {
+      bubble.style.transition = "transform 180ms cubic-bezier(.2,.9,.3,1.05), opacity 130ms ease";
+      bubble.style.opacity = "1";
+      bubble.style.transform = "scale(1)";
+    });
+  }
+
   function renderNewOptimistic(m) {
     var frag = document.createElement("div");
     frag.innerHTML = bubbleHTML(m);
     var node = frag.firstChild;
-    node.classList.add("ntc-new");
     els.list.appendChild(node);
     hookRows();
+    popIn(node);
     // I just sent this — always bring it into view, keyboard height included.
     layout();
     requestAnimationFrame(function () { els.list.scrollTop = els.list.scrollHeight; });
@@ -4320,10 +4337,9 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
     "width:100%;max-width:100%;box-sizing:border-box;padding:12px 10px;}",
     ".ntc-row{display:flex;margin-bottom:6px;}",
     ".ntc-row.me{justify-content:flex-end;}",
-    ".ntc-row.ntc-new .ntc-bubble{animation:ntcRowIn 130ms cubic-bezier(.16,.8,.24,1) both;will-change:transform,opacity;}",
-    ".ntc-row.ntc-new.me .ntc-bubble{transform-origin:bottom right;}",
-    ".ntc-row.ntc-new.them .ntc-bubble{transform-origin:bottom left;}",
-    "@keyframes ntcRowIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}",
+    ".ntc-bubble{will-change:transform,opacity;}",
+    ".ntc-row.me .ntc-bubble{transform-origin:bottom right;}",
+    ".ntc-row.them .ntc-bubble{transform-origin:bottom left;}",
     ".ntc-bubble{position:relative;max-width:78%;padding:8px 12px;border-radius:8px;",
     "font-size:14.4px;line-height:1.5;color:#F4EEFF;word-break:break-word;}",
     ".ntc-bubble.them{background:#1E1830;border-top-left-radius:2px;}",
