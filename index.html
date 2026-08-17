@@ -4933,5 +4933,270 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 })();
 </script>
 
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   Icon suggestions — Eva picks new icons, Fuaad approves before they
+   go live. Nothing changes until it's approved.
+   ═══════════════════════════════════════════════════════════════════ */
+(function () {
+  var SB_URL = "https://desbesgbcmxnifinvnqi.supabase.co";
+  var SB_KEY = "sb_publishable_hcuVVsAhgnzmaoFk7s3h6g_zJUOm7mf";
+  var H = { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY };
+  var HJ = Object.assign({ "Content-Type": "application/json" }, H);
+
+  // Each slot: id, a human label (shown in the picker + review card), and a
+  // curated set of alternative emoji to choose from.
+  var SLOTS = [
+    { id: "nav_home",     label: "الرئيسية",      choices: ["🏠","🏡","🌙","✨","💫"] },
+    { id: "nav_chat",     label: "الرسائل",       choices: ["💬","💌","📩","🗨️","💭"] },
+    { id: "nav_capsules", label: "الكبسولات",     choices: ["📦","⏳","🎁","🫙","⌛"] },
+    { id: "nav_memories", label: "الذكريات",      choices: ["❤️","📸","🌸","💜","🤍"] },
+    { id: "nav_journal",  label: "اليوميات",      choices: ["📔","📓","✍️","📝","🖋️"] },
+    { id: "nav_settings", label: "الإعدادات",     choices: ["⚙️","🔧","🛠️","⋯","☰"] },
+    { id: "type_message", label: "نوع: رسالة",    choices: ["💌","💬","📝","✉️","💭"] },
+    { id: "type_photo",   label: "نوع: صورة",     choices: ["📷","🖼️","📸","🌄","🎞️"] },
+    { id: "type_audio",   label: "نوع: صوت",      choices: ["🎙️","🎧","🔊","🎵","📻"] },
+  ];
+  var SLOT_MAP = {}; SLOTS.forEach(function (s) { SLOT_MAP[s.id] = s; });
+
+  var gs = null; // global_settings row
+
+  async function loadSettings() {
+    try {
+      var r = await fetch(SB_URL + "/rest/v1/global_settings?id=eq.1&select=*", { headers: H });
+      var rows = await r.json();
+      gs = Array.isArray(rows) ? rows[0] : null;
+      return gs;
+    } catch (e) { return null; }
+  }
+
+  async function saveField(field, value) {
+    try {
+      await fetch(SB_URL + "/rest/v1/global_settings?id=eq.1", {
+        method: "PATCH",
+        headers: Object.assign({ Prefer: "return=minimal" }, HJ),
+        body: JSON.stringify({ [field]: value }),
+      });
+    } catch (e) {}
+  }
+
+  // ── apply the LIVE (approved) icon overrides to the real UI ─────────
+  function applyLiveIcons() {
+    if (!gs || !gs.icon_overrides) return;
+    var overrides = gs.icon_overrides;
+
+    // nav icons: 6 buttons in a fixed order inside .tc-bottom-nav
+    var navOrder = ["nav_home", "nav_chat", "nav_capsules", "nav_memories", "nav_journal", "nav_settings"];
+    var navBtns = document.querySelectorAll(".tc-bottom-nav .tc-nav-item");
+    navBtns.forEach(function (btn, i) {
+      var slotId = navOrder[i];
+      var emoji = overrides[slotId];
+      var svg = btn.querySelector("svg.tc-nav-icon, svg");
+      if (!svg) return;
+      var existing = btn.querySelector(".tc-icon-override");
+      if (emoji) {
+        svg.style.display = "none";
+        if (!existing) {
+          var span = document.createElement("span");
+          span.className = "tc-icon-override";
+          span.textContent = emoji;
+          span.style.cssText = "font-size:19px;line-height:1;display:block;";
+          svg.parentNode.insertBefore(span, svg);
+        } else if (existing.textContent !== emoji) {
+          existing.textContent = emoji;
+        }
+      } else {
+        svg.style.display = "";
+        if (existing) existing.remove();
+      }
+    });
+
+    // capsule-type emoji: replace matching text nodes wherever they render
+    var typeMap = { "💌": overrides.type_message, "📷": overrides.type_photo, "🎙️": overrides.type_audio };
+    Object.keys(typeMap).forEach(function (original) {
+      var replacement = typeMap[original];
+      if (!replacement) return;
+      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      var toFix = [];
+      while (walker.nextNode()) {
+        if (walker.currentNode.nodeValue.trim() === original) toFix.push(walker.currentNode);
+      }
+      toFix.forEach(function (node) { node.nodeValue = node.nodeValue.replace(original, replacement); });
+    });
+  }
+
+  var style = document.createElement("style");
+  style.textContent = [
+    "#tc-icon-picker,#tc-icon-review{position:fixed;inset:0;z-index:9200;display:flex;",
+    "align-items:center;justify-content:center;padding:20px;background:rgba(8,4,18,.85);",
+    "font-family:-apple-system,sans-serif;animation:tcIconFade 140ms ease both;}",
+    "@keyframes tcIconFade{from{opacity:0}to{opacity:1}}",
+    "#tc-icon-picker .sheet,#tc-icon-review .sheet{width:100%;max-width:420px;",
+    "background:linear-gradient(180deg,#2b1c4c,#1a1132);border:1px solid rgba(255,255,255,.16);",
+    "border-radius:22px;padding:18px;max-height:80vh;overflow-y:auto;color:#F4EEFF;",
+    "box-shadow:0 24px 60px rgba(0,0,0,.55);}",
+    "#tc-icon-picker h3,#tc-icon-review h3{margin:0 0 14px;font-size:16px;}",
+    ".tc-icon-slot{margin-bottom:16px;}",
+    ".tc-icon-slot .lbl{font-size:12.5px;opacity:.75;margin-bottom:6px;}",
+    ".tc-icon-slot .grid{display:flex;gap:8px;flex-wrap:wrap;}",
+    ".tc-icon-slot .grid button{width:42px;height:42px;font-size:20px;border-radius:12px;",
+    "border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);}",
+    ".tc-icon-slot .grid button.sel{border-color:#A97CEC;background:rgba(169,124,236,.18);}",
+    "#tc-icon-picker .submit,#tc-icon-review .approve{width:100%;margin-top:6px;padding:13px;",
+    "border-radius:14px;border:none;background:linear-gradient(135deg,#A97CEC,#6A4BB0);",
+    "color:#fff;font-weight:700;font-size:14px;}",
+    "#tc-icon-review .reject{width:100%;margin-top:8px;padding:12px;border-radius:14px;",
+    "border:none;background:rgba(255,255,255,.08);color:#F4EEFF;font-size:13.5px;}",
+    "#tc-icon-review .row{display:flex;align-items:center;justify-content:space-between;",
+    "padding:9px 0;border-bottom:1px solid rgba(255,255,255,.08);}",
+    "#tc-icon-review .row .before{opacity:.5;}#tc-icon-review .row .arrow{opacity:.4;margin:0 8px;}",
+    "#tc-icon-suggest-btn{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);",
+    "border-radius:14px;padding:12px;color:#F4EEFF;font-size:13.5px;margin-top:8px;}",
+  ].join("\n");
+  document.head.appendChild(style);
+
+  // ── Eva's picker screen ───────────────────────────────────────────
+  function openPicker() {
+    if (document.getElementById("tc-icon-picker")) return;
+    var choice = {};
+    var back = document.createElement("div");
+    back.id = "tc-icon-picker";
+    back.onclick = function (e) { if (e.target === back) back.remove(); };
+
+    var sheet = document.createElement("div");
+    sheet.className = "sheet";
+    sheet.onclick = function (e) { e.stopPropagation(); };
+    sheet.innerHTML = "<h3>🎨 اقترحي أيقونات جديدة</h3>";
+
+    SLOTS.forEach(function (slot) {
+      var wrap = document.createElement("div");
+      wrap.className = "tc-icon-slot";
+      var lbl = document.createElement("div");
+      lbl.className = "lbl";
+      lbl.textContent = slot.label;
+      var grid = document.createElement("div");
+      grid.className = "grid";
+      slot.choices.forEach(function (emoji) {
+        var b = document.createElement("button");
+        b.textContent = emoji;
+        b.onclick = function () {
+          choice[slot.id] = emoji;
+          Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove("sel"); });
+          b.classList.add("sel");
+        };
+        grid.appendChild(b);
+      });
+      wrap.appendChild(lbl); wrap.appendChild(grid);
+      sheet.appendChild(wrap);
+    });
+
+    var submit = document.createElement("button");
+    submit.className = "submit";
+    submit.textContent = "أرسلي الاقتراح لفؤاد";
+    submit.onclick = async function () {
+      if (!Object.keys(choice).length) { back.remove(); return; }
+      submit.disabled = true; submit.textContent = "...";
+      await saveField("icon_overrides_pending", choice);
+      back.remove();
+      window.alert("تم إرسال اقتراحك! رح يشوفه فؤاد ويوافق عليه.");
+    };
+    sheet.appendChild(submit);
+
+    back.appendChild(sheet);
+    document.body.appendChild(back);
+  }
+
+  // ── Fuaad's review card ──────────────────────────────────────────
+  function openReview(pending) {
+    if (document.getElementById("tc-icon-review")) return;
+    var back = document.createElement("div");
+    back.id = "tc-icon-review";
+    back.onclick = function (e) { if (e.target === back) back.remove(); };
+
+    var sheet = document.createElement("div");
+    sheet.className = "sheet";
+    sheet.onclick = function (e) { e.stopPropagation(); };
+    sheet.innerHTML = "<h3>💌 إيفا اقترحت تغيير أيقونات</h3>";
+
+    Object.keys(pending).forEach(function (slotId) {
+      var slot = SLOT_MAP[slotId];
+      if (!slot) return;
+      var row = document.createElement("div");
+      row.className = "row";
+      var current = (gs && gs.icon_overrides && gs.icon_overrides[slotId]) || slot.choices[0];
+      row.innerHTML =
+        '<span>' + slot.label + '</span>' +
+        '<span><span class="before">' + current + '</span><span class="arrow">→</span>' + pending[slotId] + '</span>';
+      sheet.appendChild(row);
+    });
+
+    var approve = document.createElement("button");
+    approve.className = "approve";
+    approve.textContent = "✓ موافقة وتطبيق";
+    approve.onclick = async function () {
+      approve.disabled = true; approve.textContent = "...";
+      var merged = Object.assign({}, gs.icon_overrides || {}, pending);
+      await saveField("icon_overrides", merged);
+      await saveField("icon_overrides_pending", null);
+      gs.icon_overrides = merged; gs.icon_overrides_pending = null;
+      applyLiveIcons();
+      back.remove();
+    };
+    var reject = document.createElement("button");
+    reject.className = "reject";
+    reject.textContent = "✕ رفض";
+    reject.onclick = async function () {
+      await saveField("icon_overrides_pending", null);
+      gs.icon_overrides_pending = null;
+      back.remove();
+    };
+
+    sheet.appendChild(approve); sheet.appendChild(reject);
+    back.appendChild(sheet);
+    document.body.appendChild(back);
+  }
+
+  // ── place an entry point in Settings for everyone, and auto-show the
+  //    review card to whoever is logged in when a suggestion is pending ──
+  function placeSuggestButton() {
+    if (document.getElementById("tc-icon-suggest-btn")) return;
+    var fl = document.querySelector(".tc-font-list");
+    var screen = fl ? fl.closest(".tc-screen") : null;
+    if (!screen) return;
+    var anchor = screen.querySelector(".tc-settings-card");
+    var btn = document.createElement("button");
+    btn.id = "tc-icon-suggest-btn";
+    btn.textContent = "🎨 اقترحي أيقونات جديدة";
+    btn.onclick = openPicker;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+  }
+
+  var reviewShown = false;
+  async function sync() {
+    if (!document.querySelector(".tc-root")) return;
+    if (!gs) await loadSettings();
+    if (!gs) return;
+    placeSuggestButton();
+    applyLiveIcons();
+    if (gs.icon_overrides_pending && !reviewShown) {
+      reviewShown = true;
+      openReview(gs.icon_overrides_pending);
+    }
+    if (!gs.icon_overrides_pending) reviewShown = false;
+  }
+
+  var mo = new MutationObserver(function () {
+    if (mo._t) clearTimeout(mo._t);
+    mo._t = setTimeout(sync, 300);
+  });
+  function start() {
+    if (!document.body) return setTimeout(start, 60);
+    mo.observe(document.body, { childList: true, subtree: true });
+    setTimeout(sync, 1200);
+    setInterval(async function () { await loadSettings(); sync(); }, 15000);
+  }
+  window.addEventListener("load", start);
+})();
+</script>
 </body>
 </html>
