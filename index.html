@@ -4972,12 +4972,27 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
 
   async function saveField(field, value) {
     try {
-      await fetch(SB_URL + "/rest/v1/global_settings?id=eq.1", {
+      var res = await fetch(SB_URL + "/rest/v1/global_settings?id=eq.1", {
         method: "PATCH",
-        headers: Object.assign({ Prefer: "return=minimal" }, HJ),
+        headers: Object.assign({ Prefer: "return=minimal,return=representation" }, HJ),
         body: JSON.stringify({ [field]: value }),
       });
-    } catch (e) {}
+      if (!res.ok) {
+        window.alert("خطأ حفظ (" + res.status + "): تأكدي إنك شغّلتي icon-overrides.sql بـ Supabase.");
+        return false;
+      }
+      var text = await res.text().catch(function () { return "[]"; });
+      var rows = [];
+      try { rows = JSON.parse(text); } catch (e) {}
+      if (Array.isArray(rows) && !rows.length) {
+        window.alert("تحذير: ما لقيت صف بـ global_settings (id=1) لتحديثه — تأكدي إنه موجود.");
+        return false;
+      }
+      return true;
+    } catch (e) {
+      window.alert("خطأ اتصال: " + (e && e.message || e));
+      return false;
+    }
   }
 
   // ── apply the LIVE (approved) icon overrides to the real UI ─────────
@@ -5174,9 +5189,11 @@ button:active, .tc-account-chip:active, .tc-type-btn:active, .tc-preset-btn:acti
   var reviewShown = false;
   async function sync() {
     if (!document.querySelector(".tc-root")) return;
+    // The button doesn't need any data loaded to exist — show it unconditionally,
+    // so a failed/slow settings fetch can never hide the entry point entirely.
+    placeSuggestButton();
     if (!gs) await loadSettings();
     if (!gs) return;
-    placeSuggestButton();
     applyLiveIcons();
     if (gs.icon_overrides_pending && !reviewShown) {
       reviewShown = true;
